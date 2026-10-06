@@ -4,6 +4,7 @@ import com.example.BuildConfig
 import com.example.ai.AIService
 import com.example.ai.LessonExplanation
 import com.example.ai.TutorResponse
+import com.example.ai.grounding.GroundingProvenanceValidator
 import com.example.data.local.entity.ChatMessageEntity
 import com.example.data.local.entity.DocumentChunkEntity
 import com.example.data.local.entity.QuestionEntity
@@ -126,25 +127,18 @@ open class CloudAIService : AIService {
 
         val (responseText, usedModel) = executeGeminiRequest(requestJson)
 
-        // Strict deterministic citation & provenance verification:
+        // Strict deterministic citation & provenance verification via production validator:
         // 1. If no evidence chunks were provided, citation MUST be null and isGroundedInMaterial MUST be false.
         // 2. If evidence chunks exist, verify that the model did not disclaim finding the material.
-        val disclaimedGrounded = responseText.contains("This topic wasn't found in your uploaded materials", ignoreCase = true) ||
-                responseText.contains("not found in your uploaded", ignoreCase = true)
-
-        val isGrounded = hasEvidence && !disclaimedGrounded
-
-        // Citations ONLY come from actual retrieved chunk metadata present in the request
-        val citationDoc = if (isGrounded) topChunk?.sourceDocumentName else null
-        val citationPage = if (isGrounded) topChunk?.pageNumber else null
+        val validation = GroundingProvenanceValidator.validate(responseText, relevantChunks)
 
         TutorResponse(
             answer = responseText,
-            sourceDocName = citationDoc,
-            sourcePage = citationPage,
+            sourceDocName = validation.sourceDocumentName,
+            sourcePage = validation.sourcePage,
             isOffline = false,
-            confidence = if (isGrounded) 0.95f else 0.85f,
-            isGroundedInMaterial = isGrounded,
+            confidence = if (validation.isGrounded) 0.95f else 0.85f,
+            isGroundedInMaterial = validation.isGrounded,
             modelUsed = usedModel
         )
     }

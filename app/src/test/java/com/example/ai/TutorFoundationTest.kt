@@ -1,5 +1,6 @@
 package com.example.ai
 
+import com.example.ai.grounding.GroundingProvenanceValidator
 import com.example.ai.local.LocalAIService
 import com.example.ai.nlp.QueryUnderstanding
 import com.example.ai.nlp.TutorIntent
@@ -178,33 +179,10 @@ class TutorFoundationTest {
     }
 
     @Test
-    fun `citation provenance verification strictly bounds citation to retrieved chunks`() = runBlocking {
-        val cloudAI = object : com.example.ai.cloud.CloudAIService() {
-            override fun isConfigured(): Boolean = true
-            override suspend fun answerTutor(
-                query: String,
-                skill: SkillEntity?,
-                relevantChunks: List<DocumentChunkEntity>,
-                courseId: Long,
-                conversationHistory: List<com.example.data.local.entity.ChatMessageEntity>
-            ): TutorResponse {
-                val hasEvidence = relevantChunks.isNotEmpty()
-                val topChunk = relevantChunks.firstOrNull()
-                return TutorResponse(
-                    answer = "A database transaction is an atomic unit of execution.",
-                    sourceDocName = if (hasEvidence) topChunk?.sourceDocumentName else null,
-                    sourcePage = if (hasEvidence) topChunk?.pageNumber else null,
-                    isOffline = false,
-                    isGroundedInMaterial = hasEvidence,
-                    modelUsed = "gemini-3.5-flash-lite"
-                )
-            }
-        }
-
-        // Test A: With retrieved chunk -> provenance attached
-        val chunk = DocumentChunkEntity(
-            id = 50,
-            documentId = 2,
+    fun `production GroundingProvenanceValidator validates genuine chunk citation and rejects missing or disclaimed material`() {
+        val chunk1 = DocumentChunkEntity(
+            id = 10,
+            documentId = 1,
             courseId = 1,
             sourceDocumentName = "Operating_Systems.pdf",
             pageNumber = 88,
@@ -212,28 +190,83 @@ class TutorFoundationTest {
             text = "Deadlock occurs when processes hold resources and wait for others."
         )
 
-        val groundedResponse = cloudAI.answerTutor(
-            query = "What is deadlock?",
-            skill = null,
-            relevantChunks = listOf(chunk),
-            courseId = 1
+        // Case A: Retrieved chunk exists and model response is normal grounded text
+        val normalResponse = "Deadlock is a state where concurrent processes block each other from accessing shared locks."
+        val resultA = GroundingProvenanceValidator.validate(normalResponse, listOf(chunk1))
+        assertTrue(resultA.isGrounded)
+        assertEquals("Operating_Systems.pdf", resultA.sourceDocumentName)
+        assertEquals(88, resultA.sourcePage)
+
+        // Case B: No retrieved chunks -> grounded = false, citation = null
+        val resultB = GroundingProvenanceValidator.validate(normalResponse, emptyList())
+        assertFalse(resultB.isGrounded)
+        assertNull(resultB.sourceDocumentName)
+        assertNull(resultB.sourcePage)
+
+        // Case C: Retrieved chunk exists but model response explicitly says material does not contain the answer
+        val disclaimedResponse = "This topic wasn't found in your uploaded materials. Based on general knowledge, quantum computing uses qubits."
+        val resultC = GroundingProvenanceValidator.validate(disclaimedResponse, listOf(chunk1))
+        assertFalse("Must be ungrounded when model explicitly disclaims finding topic in material", resultC.isGrounded)
+        assertNull(resultC.sourceDocumentName)
+        assertNull(resultC.sourcePage)
+
+        // Case D: Retrieved chunk metadata is strictly preserved
+        val chunk2 = DocumentChunkEntity(
+            id = 20,
+            documentId = 3,
+            courseId = 1,
+            sourceDocumentName = "Real_Notes.pdf",
+            pageNumber = 17,
+            chunkIndex = 1,
+            text = "Linear regression models the relationship between dependent and explanatory variables."
+        )
+        val resultD = GroundingProvenanceValidator.validate("Linear regression fits a best-fit line minimizing squared residuals.", listOf(chunk2))
+        assertTrue(resultD.isGrounded)
+        assertEquals("Real_Notes.pdf", resultD.sourceDocumentName)
+        assertEquals(17, resultD.sourcePage)
+
+        // Case E: Model response attempts to mention a different document/page in text -> citation still comes ONLY from chunk
+        val hallucinatedText = "According to Physics_Hallucinated.pdf on page 999, regression is great."
+        val resultE = GroundingProvenanceValidator.validate(hallucinatedText, listOf(chunk2))
+        assertTrue(resultE.isGrounded)
+        assertEquals("Citation document must strictly come from retrieved chunk metadata, not hallucinated text", "Real_Notes.pdf", resultE.sourceDocumentName)
+        assertEquals("Citation page must strictly come from retrieved chunk metadata, not hallucinated text", 17, resultE.sourcePage)
+    }
+
+    @Test
+    fun `production local AI lesson explanation does not invent fake generic formulas or examples`() = runBlocking {
+        val localAI = LocalAIService()
+        val skill = SkillEntity(
+            id = 99,
+            courseId = 1,
+            name = "Recursion",
+            description = "A function calling itself until reaching a base case.",
+            chapter = "Algorithms",
+            sourceDocumentName = "Data_Structures.pdf",
+            sourcePage = 25
         )
 
-        assertTrue(groundedResponse.isGroundedInMaterial)
-        assertEquals("Operating_Systems.pdf", groundedResponse.sourceDocName)
-        assertEquals(88, groundedResponse.sourcePage)
-
-        // Test B: Empty retrieval -> no citation, grounded=false
-        val ungroundedResponse = cloudAI.answerTutor(
-            query = "What is deadlock?",
-            skill = null,
-            relevantChunks = emptyList(),
-            courseId = 1
+        val chunk = DocumentChunkEntity(
+            id = 1,
+            documentId = 1,
+            courseId = 1,
+            sourceDocumentName = "Data_Structures.pdf",
+            pageNumber = 25,
+            chunkIndex = 0,
+            text = "Recursion breaks problems into smaller subproblems. Every recursive method requires a base case to terminate."
         )
 
-        assertFalse(ungroundedResponse.isGroundedInMaterial)
-        assertNull(ungroundedResponse.sourceDocName)
-        assertNull(ungroundedResponse.sourcePage)
+        val explanation = localAI.generateExplanation(skill, listOf(chunk))
+        assertEquals("Recursion", explanation.title)
+        assertEquals("Data_Structures.pdf", explanation.sourceDocName)
+        assertEquals(25, explanation.sourcePage)
+        assertTrue(explanation.summary.contains("Recursion"))
+        // Verify no fake generic strings
+        assertFalse(explanation.keyPoints.contains("Core theoretical foundation"))
+        assertFalse(explanation.keyPoints.contains("Key formula / relationship"))
+        assertFalse(explanation.keyPoints.contains("Application in practice"))
+        assertFalse(explanation.keyPoints.contains("Boundary conditions"))
+        assertFalse(explanation.examples.contains("Sample problem worked step by step."))
     }
 
     @Test
