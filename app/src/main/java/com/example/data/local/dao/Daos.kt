@@ -174,6 +174,9 @@ interface ChatMessageDao {
     @Query("SELECT * FROM chat_messages WHERE courseId = :courseId ORDER BY timestamp ASC")
     fun getMessagesForCourse(courseId: Long): Flow<List<ChatMessageEntity>>
 
+    @Query("SELECT * FROM chat_messages WHERE courseId = :courseId ORDER BY timestamp ASC")
+    suspend fun getMessagesSync(courseId: Long): List<ChatMessageEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMessage(message: ChatMessageEntity): Long
 

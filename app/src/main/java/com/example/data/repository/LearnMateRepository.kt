@@ -24,8 +24,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.withContext
 
 class LearnMateRepository(
@@ -88,11 +86,13 @@ class LearnMateRepository(
         fileSize: String,
         extractedChunks: List<ExtractedChunk>
     ): Long = withContext(Dispatchers.IO) {
+        // Sanitize file name against path traversal
+        val sanitizedFileName = fileName.replace(Regex("[^a-zA-Z0-9._-]"), "_")
         val docId = database.documentDao().insertDocument(
             DocumentEntity(
                 courseId = courseId,
                 fileName = fileName,
-                filePath = "local/$fileName",
+                filePath = "local/$sanitizedFileName",
                 fileType = fileType,
                 fileSize = fileSize,
                 pageCount = maxOf(1, extractedChunks.maxOfOrNull { it.pageNumber } ?: 1),
@@ -130,7 +130,7 @@ class LearnMateRepository(
             val extractedSkills = buildSkillsFromMaterial(courseId, primaryDoc?.fileName ?: "Material", chunks)
             val skillIds = database.skillDao().insertSkills(extractedSkills)
 
-            // Setup basic relationships
+            // Setup prerequisite relationships based on document structure
             val relations = mutableListOf<SkillRelationEntity>()
             for (i in 0 until skillIds.size - 1) {
                 relations.add(
@@ -167,39 +167,100 @@ class LearnMateRepository(
         refreshLearningPlan(courseId)
     }
 
+    /**
+     * Dynamically extracts skills from arbitrary educational documents (Java, Physics, History, Biology, etc.)
+     * without hardcoded subject keywords.
+     */
     private fun buildSkillsFromMaterial(
         courseId: Long,
         docName: String,
         chunks: List<DocumentChunkEntity>
     ): List<SkillEntity> {
-        val joined = chunks.joinToString(" ") { it.text }.lowercase()
-        val skills = mutableListOf<SkillEntity>()
+        val discoveredSkills = mutableListOf<SkillEntity>()
 
-        if (joined.contains("kinematic") || joined.contains("motion") || joined.contains("displacement")) {
-            skills.add(SkillEntity(courseId = courseId, name = "Kinematics", description = "Position, displacement, speed and velocity analysis.", chapter = "Mechanics", difficulty = "EASY", sourceDocumentName = docName, sourcePage = 1, confidence = 0.95f))
-        }
-        if (joined.contains("velocity") || joined.contains("speed")) {
-            skills.add(SkillEntity(courseId = courseId, name = "Velocity & Acceleration", description = "Time derivatives of position, uniform acceleration equations.", chapter = "Mechanics", difficulty = "EASY", sourceDocumentName = docName, sourcePage = 2, confidence = 0.93f))
-        }
-        if (joined.contains("newton") || joined.contains("inertia") || joined.contains("momentum")) {
-            skills.add(SkillEntity(courseId = courseId, name = "Newton's Laws", description = "First, Second, and Third laws governing forces and momentum.", chapter = "Dynamics", difficulty = "HARD", sourceDocumentName = docName, sourcePage = 3, confidence = 0.96f))
-        }
-        if (joined.contains("force") || joined.contains("free-body") || joined.contains("equilibrium")) {
-            skills.add(SkillEntity(courseId = courseId, name = "Force Diagrams", description = "Vector resolution of normal, tension, and gravitational forces.", chapter = "Dynamics", difficulty = "MEDIUM", sourceDocumentName = docName, sourcePage = 4, confidence = 0.92f))
-        }
-        if (joined.contains("friction") || joined.contains("sliding") || joined.contains("incline")) {
-            skills.add(SkillEntity(courseId = courseId, name = "Friction Analysis", description = "Static friction limits, kinetic friction, and roughness factors.", chapter = "Dynamics", difficulty = "HARD", sourceDocumentName = docName, sourcePage = 5, confidence = 0.90f))
-        }
-        if (joined.contains("energy") || joined.contains("work") || joined.contains("power")) {
-            skills.add(SkillEntity(courseId = courseId, name = "Work and Energy", description = "Work-energy theorem and conservation of mechanical energy.", chapter = "Energy", difficulty = "MEDIUM", sourceDocumentName = docName, sourcePage = 6, confidence = 0.91f))
+        // 1. Scan chunks for structured headings or section markers
+        val sectionRegex = Regex("(?i)(?:Chapter|Unit|Module|Section|Topic)\\s*[:\\d.-]*\\s*([A-Za-z0-9 ,_'-]{3,50})")
+        val lines = chunks.flatMap { chunk ->
+            chunk.text.lines().map { line -> Triple(line.trim(), chunk.pageNumber, chunk.id) }
         }
 
-        if (skills.isEmpty()) {
-            skills.add(SkillEntity(courseId = courseId, name = "Core Principles", description = "Fundamental definitions and theoretical models.", chapter = "Overview", difficulty = "EASY", sourceDocumentName = docName, sourcePage = 1, confidence = 0.85f))
-            skills.add(SkillEntity(courseId = courseId, name = "Applied Problem Solving", description = "Quantitative equations and calculations.", chapter = "Overview", difficulty = "MEDIUM", sourceDocumentName = docName, sourcePage = 2, confidence = 0.88f))
+        for ((line, pageNum, chunkId) in lines) {
+            val match = sectionRegex.find(line)
+            if (match != null) {
+                val candidateName = match.groupValues[1].trim().trimEnd(':', '.', '-')
+                if (candidateName.length >= 3 && discoveredSkills.none { it.name.equals(candidateName, ignoreCase = true) }) {
+                    discoveredSkills.add(
+                        SkillEntity(
+                            courseId = courseId,
+                            name = candidateName,
+                            description = "Key concept extracted from $docName: $line",
+                            chapter = "Course Module",
+                            difficulty = "MEDIUM",
+                            sourceDocumentId = 1L,
+                            sourceDocumentName = docName,
+                            sourcePage = pageNum,
+                            confidence = 0.92f
+                        )
+                    )
+                }
+            }
+            if (discoveredSkills.size >= 7) break
         }
 
-        return skills
+        // 2. If no explicit section markers, extract top paragraphs/chunks as core topics
+        if (discoveredSkills.isEmpty()) {
+            val uniqueParagraphs = chunks.take(6)
+            uniqueParagraphs.forEachIndexed { index, chunk ->
+                val firstSentence = chunk.text.split(Regex("(?<=[.!?])\\s+")).firstOrNull()?.trim() ?: ""
+                val titleWords = firstSentence.split(" ").take(4).joinToString(" ")
+                val cleanTitle = if (titleWords.isNotBlank() && titleWords.length < 35) titleWords else "Topic ${index + 1}"
+
+                discoveredSkills.add(
+                    SkillEntity(
+                        courseId = courseId,
+                        name = cleanTitle,
+                        description = firstSentence.ifBlank { "Core subject topic covered on page ${chunk.pageNumber}." },
+                        chapter = "Core Concepts",
+                        difficulty = if (index < 2) "EASY" else if (index < 4) "MEDIUM" else "HARD",
+                        sourceDocumentId = chunk.documentId,
+                        sourceDocumentName = chunk.sourceDocumentName,
+                        sourcePage = chunk.pageNumber,
+                        confidence = 0.88f
+                    )
+                )
+            }
+        }
+
+        // 3. Guarantee at least 2 structured topics for any imported material
+        if (discoveredSkills.isEmpty()) {
+            val firstChunk = chunks.firstOrNull()
+            discoveredSkills.add(
+                SkillEntity(
+                    courseId = courseId,
+                    name = "Core Principles",
+                    description = "Fundamental definitions and theoretical models from $docName.",
+                    chapter = "Overview",
+                    difficulty = "EASY",
+                    sourceDocumentName = docName,
+                    sourcePage = firstChunk?.pageNumber ?: 1,
+                    confidence = 0.85f
+                )
+            )
+            discoveredSkills.add(
+                SkillEntity(
+                    courseId = courseId,
+                    name = "Applied Analysis",
+                    description = "Methods, practical applications, and problem-solving techniques from $docName.",
+                    chapter = "Overview",
+                    difficulty = "MEDIUM",
+                    sourceDocumentName = docName,
+                    sourcePage = firstChunk?.pageNumber ?: 1,
+                    confidence = 0.85f
+                )
+            )
+        }
+
+        return discoveredSkills
     }
 
     suspend fun refreshLearningPlan(courseId: Long) = withContext(Dispatchers.IO) {
@@ -244,9 +305,12 @@ class LearnMateRepository(
 
         val skill = if (skillId != null) database.skillDao().getSkillById(skillId) else null
 
-        val response = aiRouter.answerTutor(query, skill, relevantChunks, courseId)
+        // Fetch recent conversation history
+        val recentHistory = database.chatMessageDao().getMessagesSync(courseId).takeLast(6)
 
-        // Record assistant message
+        val response = aiRouter.answerTutor(query, skill, relevantChunks, courseId, recentHistory)
+
+        // Record assistant message with honest citations
         database.chatMessageDao().insertMessage(
             ChatMessageEntity(
                 courseId = courseId,

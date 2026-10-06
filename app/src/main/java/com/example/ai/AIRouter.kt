@@ -3,6 +3,7 @@ package com.example.ai
 import com.example.ai.cloud.CloudAIService
 import com.example.ai.local.LocalAIService
 import com.example.core.network.NetworkMonitor
+import com.example.data.local.entity.ChatMessageEntity
 import com.example.data.local.entity.DocumentChunkEntity
 import com.example.data.local.entity.QuestionEntity
 import com.example.data.local.entity.SkillEntity
@@ -18,20 +19,28 @@ class AIRouter(
         skill: SkillEntity?,
         relevantChunks: List<DocumentChunkEntity>,
         courseId: Long
+    ): TutorResponse = answerTutor(query, skill, relevantChunks, courseId, emptyList())
+
+    override suspend fun answerTutor(
+        query: String,
+        skill: SkillEntity?,
+        relevantChunks: List<DocumentChunkEntity>,
+        courseId: Long,
+        conversationHistory: List<ChatMessageEntity>
     ): TutorResponse {
         val isOnline = networkMonitor.isOnline.value
         val hasCloudKey = cloudAI.isConfigured()
 
         if (isOnline && hasCloudKey) {
             try {
-                return cloudAI.answerTutor(query, skill, relevantChunks, courseId)
+                return cloudAI.answerTutor(query, skill, relevantChunks, courseId, conversationHistory)
             } catch (_: Exception) {
-                // Cloud attempt failed or timed out: fall back seamlessly to local AI
+                // Cloud attempt failed or timed out: fall back seamlessly to honest local tutor
             }
         }
 
         // Offline or fallback path:
-        return localAI.answerTutor(query, skill, relevantChunks, courseId)
+        return localAI.answerTutor(query, skill, relevantChunks, courseId, conversationHistory)
     }
 
     override suspend fun generateExplanation(
@@ -45,7 +54,7 @@ class AIRouter(
             try {
                 return cloudAI.generateExplanation(skill, relevantChunks)
             } catch (_: Exception) {
-                // Fall back
+                // Fall back to local
             }
         }
 
@@ -57,6 +66,20 @@ class AIRouter(
         count: Int,
         difficulty: String
     ): List<QuestionEntity> {
+        val isOnline = networkMonitor.isOnline.value
+        val hasCloudKey = cloudAI.isConfigured()
+
+        if (isOnline && hasCloudKey) {
+            try {
+                val cloudQuestions = cloudAI.generateQuestionsForSkill(skill, count, difficulty)
+                if (cloudQuestions.isNotEmpty()) {
+                    return cloudQuestions
+                }
+            } catch (_: Exception) {
+                // Fall back to local
+            }
+        }
+
         return localAI.generateQuestionsForSkill(skill, count, difficulty)
     }
 }

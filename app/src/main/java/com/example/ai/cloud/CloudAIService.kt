@@ -4,6 +4,7 @@ import com.example.BuildConfig
 import com.example.ai.AIService
 import com.example.ai.LessonExplanation
 import com.example.ai.TutorResponse
+import com.example.data.local.entity.ChatMessageEntity
 import com.example.data.local.entity.DocumentChunkEntity
 import com.example.data.local.entity.QuestionEntity
 import com.example.data.local.entity.SkillEntity
@@ -25,6 +26,10 @@ class CloudAIService : AIService {
         .writeTimeout(60, TimeUnit.SECONDS)
         .build()
 
+    // Primary modern fast flash model
+    private val primaryModel = "gemini-2.5-flash"
+    private val fallbackModel = "gemini-3.5-flash"
+
     private val apiKey: String
         get() = try {
             BuildConfig.GEMINI_API_KEY
@@ -42,70 +47,93 @@ class CloudAIService : AIService {
         skill: SkillEntity?,
         relevantChunks: List<DocumentChunkEntity>,
         courseId: Long
+    ): TutorResponse = answerTutor(query, skill, relevantChunks, courseId, emptyList())
+
+    override suspend fun answerTutor(
+        query: String,
+        skill: SkillEntity?,
+        relevantChunks: List<DocumentChunkEntity>,
+        courseId: Long,
+        conversationHistory: List<ChatMessageEntity>
     ): TutorResponse = withContext(Dispatchers.IO) {
         if (!isConfigured()) {
             throw IllegalStateException("Cloud AI API key is not configured.")
         }
 
         val topChunk = relevantChunks.firstOrNull()
-        val contextText = relevantChunks.joinToString("\n\n---\n\n") { chunk ->
-            "[Source: ${chunk.sourceDocumentName}, Page: ${chunk.pageNumber}]\n${chunk.text}"
+        val hasEvidence = relevantChunks.isNotEmpty()
+
+        val contextText = if (hasEvidence) {
+            relevantChunks.joinToString("\n\n---\n\n") { chunk ->
+                "[Document: ${chunk.sourceDocumentName}, Page: ${chunk.pageNumber}]\n${chunk.text}"
+            }
+        } else {
+            "No direct passage found in student's uploaded material."
         }
 
-        val prompt = buildString {
-            append("You are LearnMate, an expert, supportive AI educational tutor.\n")
-            append("The student is asking: \"$query\"\n\n")
+        val systemInstructionText = buildString {
+            append("You are LearnMate, a supportive and accurate AI educational tutor.\n")
+            append("Your goal is to help students learn effectively from their own uploaded course materials.\n\n")
+            append("RULES:\n")
+            append("1. Ground your answer in the provided STUDENT'S UPLOADED MATERIAL CONTEXT whenever available.\n")
+            append("2. If the user's question CANNOT be answered from the provided material, explicitly begin with:\n")
+            append("   \"This topic wasn't found in your uploaded materials. Based on general knowledge...\"\n")
+            append("3. Teach clearly: explain the core concept, use a simple analogy if helpful, and ask a gentle follow-up check question.\n")
+            append("4. NEVER invent documents, authors, or page numbers that are not in the context.\n")
+        }
+
+        // Construct contents payload including recent conversation turns
+        val contentsArray = JSONArray()
+
+        // Include last 4 relevant turns of history
+        val recentHistory = conversationHistory.takeLast(4)
+        for (msg in recentHistory) {
+            val role = if (msg.role == "user") "user" else "model"
+            val turnObj = JSONObject().apply {
+                put("role", role)
+                put("parts", JSONArray().put(JSONObject().put("text", msg.content)))
+            }
+            contentsArray.put(turnObj)
+        }
+
+        // Current turn with material context
+        val currentPrompt = buildString {
             if (skill != null) {
-                append("Current Skill Context: ${skill.name} (Chapter: ${skill.chapter})\n\n")
+                append("Current Skill / Topic: ${skill.name} (Chapter: ${skill.chapter})\n\n")
             }
             append("STUDENT'S UPLOADED MATERIAL CONTEXT:\n")
-            append(if (contextText.isNotBlank()) contextText else "No direct chunk retrieved.")
-            append("\n\n")
-            append("INSTRUCTIONS:\n")
-            append("1. Be grounded primarily in the student's uploaded material.\n")
-            append("2. If the question is outside the uploaded material, clearly say: \"This isn't covered in your uploaded material. I can still give a general explanation...\"\n")
-            append("3. Teach like a great professor: explain simply, give a clear example, and ask a gentle check-for-understanding question.\n")
-            append("4. At the end, explicitly cite the source document name and page number if found in the material.\n")
+            append(contextText)
+            append("\n\nSTUDENT'S QUESTION:\n")
+            append(query)
         }
 
-        val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$apiKey"
+        val userTurnObj = JSONObject().apply {
+            put("role", "user")
+            put("parts", JSONArray().put(JSONObject().put("text", currentPrompt)))
+        }
+        contentsArray.put(userTurnObj)
+
         val requestJson = JSONObject().apply {
-            val contentsArray = JSONArray()
-            val contentObj = JSONObject()
-            val partsArray = JSONArray()
-            val partObj = JSONObject()
-            partObj.put("text", prompt)
-            partsArray.put(partObj)
-            contentObj.put("parts", partsArray)
-            contentsArray.put(contentObj)
             put("contents", contentsArray)
+            put("systemInstruction", JSONObject().apply {
+                put("parts", JSONArray().put(JSONObject().put("text", systemInstructionText)))
+            })
         }
 
-        val request = Request.Builder()
-            .url(url)
-            .post(requestJson.toString().toRequestBody("application/json".toMediaType()))
-            .build()
+        val responseText = executeGeminiRequest(requestJson)
 
-        val response = client.newCall(request).execute()
-        if (!response.isSuccessful) {
-            throw Exception("Gemini API error code: ${response.code}")
-        }
-
-        val responseBody = response.body?.string() ?: throw Exception("Empty response from Gemini API")
-        val json = JSONObject(responseBody)
-        val text = json.getJSONArray("candidates")
-            .getJSONObject(0)
-            .getJSONObject("content")
-            .getJSONArray("parts")
-            .getJSONObject(0)
-            .getString("text")
+        // Strict citation: only cite if top chunk actually exists
+        val citationDoc = if (hasEvidence) topChunk?.sourceDocumentName else null
+        val citationPage = if (hasEvidence) topChunk?.pageNumber else null
 
         TutorResponse(
-            answer = text,
-            sourceDocName = topChunk?.sourceDocumentName ?: skill?.sourceDocumentName ?: "Physics Notes.pdf",
-            sourcePage = topChunk?.pageNumber ?: skill?.sourcePage ?: 24,
+            answer = responseText,
+            sourceDocName = citationDoc,
+            sourcePage = citationPage,
             isOffline = false,
-            confidence = 0.98f
+            confidence = if (hasEvidence) 0.95f else 0.85f,
+            isGroundedInMaterial = hasEvidence,
+            modelUsed = primaryModel
         )
     }
 
@@ -113,43 +141,63 @@ class CloudAIService : AIService {
         skill: SkillEntity,
         relevantChunks: List<DocumentChunkEntity>
     ): LessonExplanation = withContext(Dispatchers.IO) {
-        val topChunk = relevantChunks.firstOrNull()
-        val docName = topChunk?.sourceDocumentName ?: skill.sourceDocumentName.ifBlank { "Physics Notes.pdf" }
-        val pageNum = topChunk?.pageNumber ?: skill.sourcePage
-
         if (!isConfigured()) {
-            throw IllegalStateException("API key not configured")
+            throw IllegalStateException("Cloud AI API key is not configured.")
         }
 
-        val prompt = "Create a structured student lesson for skill: '${skill.name}'. Return in simple format with summary, 4 bullet key points, and 2 worked examples."
-        val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$apiKey"
+        val topChunk = relevantChunks.firstOrNull()
+        val hasEvidence = relevantChunks.isNotEmpty()
+        val docName = if (hasEvidence) (topChunk?.sourceDocumentName ?: skill.sourceDocumentName) else skill.sourceDocumentName
+        val pageNum = if (hasEvidence) (topChunk?.pageNumber ?: skill.sourcePage) else skill.sourcePage
+
+        val contextText = relevantChunks.joinToString("\n\n") { it.text }
+            .ifBlank { skill.description }
+
+        val prompt = buildString {
+            append("You are LearnMate. Create a structured educational lesson explanation for the skill: '${skill.name}'.\n\n")
+            append("STUDENT MATERIAL CONTEXT:\n$contextText\n\n")
+            append("Format your response strictly as:\n")
+            append("SUMMARY: <3 sentence clear overview>\n")
+            append("KEY POINTS:\n- <Point 1>\n- <Point 2>\n- <Point 3>\n- <Point 4>\n")
+            append("EXAMPLES:\n- <Worked Example 1>\n- <Worked Example 2>\n")
+        }
 
         val requestJson = JSONObject().apply {
             val contents = JSONArray()
-            val content = JSONObject()
-            val parts = JSONArray()
-            parts.put(JSONObject().put("text", prompt))
-            content.put("parts", parts)
-            contents.put(content)
+            contents.put(JSONObject().apply {
+                put("role", "user")
+                put("parts", JSONArray().put(JSONObject().put("text", prompt)))
+            })
             put("contents", contents)
         }
 
-        val request = Request.Builder()
-            .url(url)
-            .post(requestJson.toString().toRequestBody("application/json".toMediaType()))
-            .build()
+        val rawText = try {
+            executeGeminiRequest(requestJson)
+        } catch (_: Exception) {
+            "Overview of ${skill.name} based on course materials."
+        }
 
-        val response = client.newCall(request).execute()
-        val body = response.body?.string() ?: ""
-        val json = JSONObject(body)
-        val text = json.getJSONArray("candidates").getJSONObject(0).getJSONObject("content").getJSONArray("parts").getJSONObject(0).getString("text")
+        val summary = rawText.substringAfter("SUMMARY:", "").substringBefore("KEY POINTS:").trim()
+            .ifBlank { rawText.take(250) }
+
+        val keyPointsBlock = rawText.substringAfter("KEY POINTS:", "").substringBefore("EXAMPLES:").trim()
+        val keyPoints = keyPointsBlock.lines()
+            .map { it.trim().removePrefix("-").removePrefix("•").trim() }
+            .filter { it.isNotBlank() }
+            .ifEmpty { listOf("Core theoretical foundation", "Key formula / relationship", "Application in practice", "Boundary conditions") }
+
+        val examplesBlock = rawText.substringAfter("EXAMPLES:", "").trim()
+        val examples = examplesBlock.lines()
+            .map { it.trim().removePrefix("-").removePrefix("•").trim() }
+            .filter { it.isNotBlank() }
+            .ifEmpty { listOf("Sample problem worked step by step.") }
 
         LessonExplanation(
             title = skill.name,
-            summary = text.take(300),
-            keyPoints = listOf("Grounded in course material", "Theoretical definition", "Formula application", "Boundary behavior"),
-            examples = listOf("Example problem verified from syllabus"),
-            sourceDocName = docName,
+            summary = summary,
+            keyPoints = keyPoints.take(5),
+            examples = examples.take(3),
+            sourceDocName = docName.ifBlank { "Course Material" },
             sourcePage = pageNum
         )
     }
@@ -158,8 +206,109 @@ class CloudAIService : AIService {
         skill: SkillEntity,
         count: Int,
         difficulty: String
-    ): List<QuestionEntity> {
-        // Fall back to local rule-based generation to guarantee valid schema and options
-        return emptyList()
+    ): List<QuestionEntity> = withContext(Dispatchers.IO) {
+        if (!isConfigured()) return@withContext emptyList()
+
+        val prompt = buildString {
+            append("Generate $count multiple-choice questions for the student skill '${skill.name}' at $difficulty difficulty.\n")
+            append("Skill description: ${skill.description}\n\n")
+            append("Return valid JSON format matching this schema:\n")
+            append("[\n")
+            append("  {\n")
+            append("    \"question\": \"Question text?\",\n")
+            append("    \"options\": [\"Option A\", \"Option B\", \"Option C\", \"Option D\"],\n")
+            append("    \"correctIndex\": 0,\n")
+            append("    \"explanation\": \"Why this option is correct\",\n")
+            append("    \"hint\": \"Helpful hint\"\n")
+            append("  }\n")
+            append("]\n")
+            append("Only return JSON array, no markdown markers.")
+        }
+
+        val requestJson = JSONObject().apply {
+            val contents = JSONArray()
+            contents.put(JSONObject().apply {
+                put("role", "user")
+                put("parts", JSONArray().put(JSONObject().put("text", prompt)))
+            })
+            put("contents", contents)
+        }
+
+        try {
+            val text = executeGeminiRequest(requestJson)
+            val cleanJson = text.trim()
+                .removePrefix("```json")
+                .removePrefix("```")
+                .removeSuffix("```")
+                .trim()
+
+            val array = JSONArray(cleanJson)
+            val list = mutableListOf<QuestionEntity>()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                val opts = obj.getJSONArray("options")
+                list.add(
+                    QuestionEntity(
+                        courseId = skill.courseId,
+                        skillId = skill.id,
+                        questionText = obj.getString("question"),
+                        optionA = opts.optString(0, "A"),
+                        optionB = opts.optString(1, "B"),
+                        optionC = opts.optString(2, "C"),
+                        optionD = opts.optString(3, "D"),
+                        correctAnswerIndex = obj.getInt("correctIndex").coerceIn(0, 3),
+                        explanation = obj.getString("explanation"),
+                        difficulty = difficulty,
+                        hint = obj.optString("hint", "Review definition of ${skill.name}"),
+                        sourceDocumentName = skill.sourceDocumentName,
+                        sourcePage = skill.sourcePage
+                    )
+                )
+            }
+            list.take(count)
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun executeGeminiRequest(payload: JSONObject): String {
+        // Try primary model first, fallback model next if 404
+        val models = listOf(primaryModel, fallbackModel)
+        var lastException: Exception? = null
+
+        for (model in models) {
+            try {
+                return callModelEndpoint(model, payload)
+            } catch (e: Exception) {
+                lastException = e
+            }
+        }
+        throw lastException ?: Exception("Failed to execute Gemini request.")
+    }
+
+    private fun callModelEndpoint(modelName: String, payload: JSONObject): String {
+        // SECURE: Send API key strictly in the 'x-goog-api-key' HTTP header, NEVER in URL query params
+        val url = "https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent"
+
+        val request = Request.Builder()
+            .url(url)
+            .addHeader("x-goog-api-key", apiKey)
+            .addHeader("Content-Type", "application/json")
+            .post(payload.toString().toRequestBody("application/json".toMediaType()))
+            .build()
+
+        val response = client.newCall(request).execute()
+        if (!response.isSuccessful) {
+            throw Exception("Gemini API error ($modelName) HTTP ${response.code}: ${response.message}")
+        }
+
+        val body = response.body?.string() ?: throw Exception("Empty response body from Gemini API")
+        val json = JSONObject(body)
+        return json.getJSONArray("candidates")
+            .getJSONObject(0)
+            .getJSONObject("content")
+            .getJSONArray("parts")
+            .getJSONObject(0)
+            .getString("text")
     }
 }

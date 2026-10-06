@@ -367,6 +367,28 @@ fun SettingsScreen(
                                     Text("Delete Model Weights to Free Up Storage", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
                                 }
                             }
+
+                            is com.example.ai.local.ModelDownloadState.Error -> {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+                                ) {
+                                    Column(modifier = Modifier.padding(10.dp)) {
+                                        Text(
+                                            text = state.message,
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.onErrorContainer,
+                                            lineHeight = 16.sp
+                                        )
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        androidx.compose.material3.TextButton(
+                                            onClick = { viewModel.modelManager.cancelDownload() }
+                                        ) {
+                                            Text("Dismiss", fontSize = 12.sp)
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }

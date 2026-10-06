@@ -29,7 +29,13 @@ class PdfTextExtractor(private val context: Context) {
         }
 
         if (inputStream == null) {
-            return generateFallbackChunks(fileName)
+            return listOf(
+                ExtractedChunk(
+                    pageNumber = 1,
+                    chunkIndex = 0,
+                    text = "[Unable to open file stream for '$fileName'. Please ensure the file exists and is accessible.]"
+                )
+            )
         }
 
         return when (extension) {
@@ -40,7 +46,6 @@ class PdfTextExtractor(private val context: Context) {
                 extractFromPdf(inputStream, fileName)
             }
             else -> {
-                // Generic file, try reading as text first
                 extractFromPlainText(inputStream)
             }
         }
@@ -58,7 +63,13 @@ class PdfTextExtractor(private val context: Context) {
         val extractedPages = parsePdfBytes(bytes)
 
         if (extractedPages.isEmpty() || extractedPages.all { it.text.isBlank() }) {
-            return generateFallbackChunks(fileName)
+            return listOf(
+                ExtractedChunk(
+                    pageNumber = 1,
+                    chunkIndex = 0,
+                    text = "[Could not extract readable text from '$fileName'. The document might be scanned, image-only, or encrypted.]"
+                )
+            )
         }
 
         return chunkContent(extractedPages)
@@ -71,7 +82,6 @@ class PdfTextExtractor(private val context: Context) {
      */
     private fun parsePdfBytes(bytes: ByteArray): List<ExtractedPage> {
         val pages = mutableListOf<ExtractedPage>()
-        var currentPage = 1
         val pdfString = String(bytes, Charsets.ISO_8859_1)
 
         // Find stream markers
@@ -108,7 +118,6 @@ class PdfTextExtractor(private val context: Context) {
 
         val extracted = fullTextBuilder.toString().trim()
         if (extracted.isNotBlank()) {
-            // Split into simulated pages if large
             val lines = extracted.lines()
             val linesPerPage = 35
             val chunks = lines.chunked(linesPerPage)
@@ -154,7 +163,6 @@ class PdfTextExtractor(private val context: Context) {
 
     private fun extractTextFromOperators(block: String): String {
         val sb = StringBuilder()
-        // Match string literals: (Hello World) Tj or [(Hello) -10 (World)] TJ
         val tjLiteralRegex = Regex("\\((.*?)\\)\\s*Tj")
         for (match in tjLiteralRegex.findAll(block)) {
             sb.append(match.groupValues[1]).append(" ")
@@ -208,20 +216,5 @@ class PdfTextExtractor(private val context: Context) {
         }
 
         return result
-    }
-
-    private fun generateFallbackChunks(fileName: String): List<ExtractedChunk> {
-        return listOf(
-            ExtractedChunk(
-                pageNumber = 1,
-                chunkIndex = 0,
-                text = "Document '$fileName' imported successfully into LearnMate course material. The content covers core foundational concepts, theoretical definitions, mathematical formulas, and practice problems."
-            ),
-            ExtractedChunk(
-                pageNumber = 2,
-                chunkIndex = 1,
-                text = "Key concepts extracted: Definition of fundamental physical quantities, velocity, acceleration, Newton's laws of motion, force equilibrium, kinetic friction, static friction, and conservation of mechanical energy."
-            )
-        )
     }
 }

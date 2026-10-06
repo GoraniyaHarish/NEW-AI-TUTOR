@@ -1,5 +1,6 @@
 package com.example.ai
 
+import com.example.data.local.entity.ChatMessageEntity
 import com.example.data.local.entity.DocumentChunkEntity
 import com.example.data.local.entity.QuestionEntity
 import com.example.data.local.entity.SkillEntity
@@ -9,7 +10,9 @@ data class TutorResponse(
     val sourceDocName: String? = null,
     val sourcePage: Int? = null,
     val isOffline: Boolean = true,
-    val confidence: Float = 0.95f
+    val confidence: Float = 0.95f,
+    val isGroundedInMaterial: Boolean = sourceDocName != null,
+    val modelUsed: String? = null
 )
 
 data class LessonExplanation(
@@ -28,6 +31,14 @@ interface AIService {
         relevantChunks: List<DocumentChunkEntity>,
         courseId: Long
     ): TutorResponse
+
+    suspend fun answerTutor(
+        query: String,
+        skill: SkillEntity?,
+        relevantChunks: List<DocumentChunkEntity>,
+        courseId: Long,
+        conversationHistory: List<ChatMessageEntity>
+    ): TutorResponse = answerTutor(query, skill, relevantChunks, courseId)
 
     suspend fun generateExplanation(
         skill: SkillEntity,
