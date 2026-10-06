@@ -144,86 +144,155 @@ fun HomeScreen(
             }
         }
 
-        // Active Course & Overall Mastery Card
+        // Active Course & Overall Mastery Card or Empty Course Prompt
         item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("current_course_card"),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+            val currentCourse = activeCourse
+            if (currentCourse == null) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("empty_course_card"),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Column {
-                            Text(
-                                text = "CURRENT COURSE",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary,
-                                letterSpacing = 1.sp
-                            )
-                            Text(
-                                text = activeCourse?.title ?: "Physics",
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-
-                        // Circular or Pill Mastery Indicator
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                        Icon(
+                            imageVector = Icons.Default.School,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(40.dp)
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = "No Active Course",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Import your lecture notes, PDFs, or syllabus to start learning, or load a sample course to explore.",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Text(
-                                text = "${diagnostics?.overallMastery ?: 68}% Mastery",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                            )
+                            Button(
+                                onClick = onNavigateToLearn,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp)
+                                    .testTag("create_first_course_button"),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Text("Create Course", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    viewModel.resetToDemoCourse { newId ->
+                                        viewModel.selectCourse(newId)
+                                    }
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp)
+                                    .testTag("load_sample_course_button"),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Text("Load Sample", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            }
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-                    MasteryProgressBar(progressPercent = diagnostics?.overallMastery ?: 68)
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Button(
-                            onClick = onNavigateToLearn,
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(46.dp)
-                                .testTag("continue_learning_button"),
-                            shape = RoundedCornerShape(10.dp)
+                }
+            } else {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("current_course_card"),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(text = "Continue Learning", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            Column {
+                                Text(
+                                    text = "CURRENT COURSE",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    letterSpacing = 1.sp
+                                )
+                                Text(
+                                    text = currentCourse.title,
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+
+                            // Mastery Indicator based on genuine student assessments
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                            ) {
+                                val masteryScore = diagnostics?.overallMastery ?: 0
+                                Text(
+                                    text = "$masteryScore% Mastery",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                )
+                            }
                         }
 
-                        OutlinedButton(
-                            onClick = onNavigateToSkillMap,
-                            modifier = Modifier
-                                .weight(0.9f)
-                                .height(46.dp)
-                                .testTag("view_skill_map_button"),
-                            shape = RoundedCornerShape(10.dp)
+                        Spacer(modifier = Modifier.height(14.dp))
+                        MasteryProgressBar(progressPercent = diagnostics?.overallMastery ?: 0)
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(imageVector = Icons.Default.School, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(text = "Skill Map", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            Button(
+                                onClick = onNavigateToLearn,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(46.dp)
+                                    .testTag("continue_learning_button"),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(text = "Continue Learning", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            }
+
+                            OutlinedButton(
+                                onClick = onNavigateToSkillMap,
+                                modifier = Modifier
+                                    .weight(0.9f)
+                                    .height(46.dp)
+                                    .testTag("view_skill_map_button"),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(imageVector = Icons.Default.School, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(text = "Skill Map", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            }
                         }
                     }
                 }

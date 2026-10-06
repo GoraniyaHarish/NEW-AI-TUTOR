@@ -70,17 +70,31 @@ fun TutorScreen(
     val isSimulatedOffline by viewModel.isSimulatedOffline.collectAsState()
     val chatMessages by viewModel.chatMessages.collectAsState()
     val isThinking by viewModel.isTutorThinking.collectAsState()
+    val skills by viewModel.skills.collectAsState()
 
     var inputText by remember { mutableStateOf(initialPrompt ?: "") }
     val listState = rememberLazyListState()
 
-    val suggestedQuestions = listOf(
-        "Explain Newton's Second Law.",
-        "Give me an example from my notes.",
-        "I don't understand friction.",
-        "Give me a hint for solving F=ma.",
-        "Test me on Kinematics."
-    )
+    val suggestedQuestions = remember(skills) {
+        if (skills.isNotEmpty()) {
+            val firstSkill = skills.first().name
+            listOf(
+                "Explain $firstSkill step by step.",
+                "Give me a clear example from my notes.",
+                "Give me a hint for solving a problem.",
+                "Summarize the main takeaways.",
+                "Test my understanding with a question."
+            )
+        } else {
+            listOf(
+                "Explain the main concepts in my notes.",
+                "Give me a practical example.",
+                "Give me a hint to solve this problem.",
+                "Summarize key definitions.",
+                "Quiz me on this topic."
+            )
+        }
+    }
 
     LaunchedEffect(chatMessages.size) {
         if (chatMessages.isNotEmpty()) {

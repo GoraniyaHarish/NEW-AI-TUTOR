@@ -66,15 +66,11 @@ fun CreateCourseScreen(
     onNavigateBack: () -> Unit,
     onCourseCreated: (Long) -> Unit
 ) {
-    var courseName by remember { mutableStateOf("Physics") }
-    var courseDescription by remember { mutableStateOf("Classical mechanics, forces, motion, friction and energy dynamics.") }
+    var courseName by remember { mutableStateOf("") }
+    var courseDescription by remember { mutableStateOf("") }
 
     val files = remember {
-        mutableStateListOf(
-            SelectedFileItem("Physics Notes.pdf", "PDF", "2.4 MB"),
-            SelectedFileItem("Physics Syllabus.pdf", "PDF", "480 KB"),
-            SelectedFileItem("Physics Question Paper.pdf", "PDF", "1.1 MB")
-        )
+        mutableStateListOf<SelectedFileItem>()
     }
 
     var showTextInputDialog by remember { mutableStateOf(false) }
@@ -281,6 +277,8 @@ fun CreateCourseScreen(
                 item {
                     OutlinedButton(
                         onClick = {
+                            if (courseName.isBlank()) courseName = "Physics"
+                            if (courseDescription.isBlank()) courseDescription = "Classical mechanics, forces, motion, friction and energy dynamics."
                             files.clear()
                             files.addAll(
                                 listOf(
@@ -298,7 +296,7 @@ fun CreateCourseScreen(
                     ) {
                         Icon(imageVector = Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Add Standard Physics Material Bundle")
+                        Text("Load Sample Physics Material Bundle")
                     }
                 }
             }

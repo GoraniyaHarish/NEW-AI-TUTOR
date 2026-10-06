@@ -18,17 +18,22 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
-class CloudAIService : AIService {
+open class CloudAIService : AIService {
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(60, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .writeTimeout(60, TimeUnit.SECONDS)
+        .connectTimeout(20, TimeUnit.SECONDS)
+        .readTimeout(25, TimeUnit.SECONDS)
+        .writeTimeout(20, TimeUnit.SECONDS)
         .build()
 
-    // Primary modern fast flash model
-    private val primaryModel = "gemini-2.5-flash"
-    private val fallbackModel = "gemini-3.5-flash"
+    // Highly responsive, active production Gemini models
+    // Primary: gemini-3.5-flash-lite (fastest, lowest latency, reliable 200 OK)
+    // Fallback: gemini-3.5-flash, then gemini-flash-lite-latest
+    private val candidateModels = listOf(
+        "gemini-3.5-flash-lite",
+        "gemini-3.5-flash",
+        "gemini-flash-lite-latest"
+    )
 
     private val apiKey: String
         get() = try {
@@ -37,7 +42,7 @@ class CloudAIService : AIService {
             ""
         }
 
-    fun isConfigured(): Boolean {
+    open fun isConfigured(): Boolean {
         val key = apiKey
         return key.isNotBlank() && key != "MY_GEMINI_API_KEY"
     }
@@ -49,7 +54,7 @@ class CloudAIService : AIService {
         courseId: Long
     ): TutorResponse = answerTutor(query, skill, relevantChunks, courseId, emptyList())
 
-    override suspend fun answerTutor(
+    open override suspend fun answerTutor(
         query: String,
         skill: SkillEntity?,
         relevantChunks: List<DocumentChunkEntity>,
@@ -120,7 +125,7 @@ class CloudAIService : AIService {
             })
         }
 
-        val responseText = executeGeminiRequest(requestJson)
+        val (responseText, usedModel) = executeGeminiRequest(requestJson)
 
         // Strict citation: only cite if top chunk actually exists
         val citationDoc = if (hasEvidence) topChunk?.sourceDocumentName else null
@@ -133,7 +138,7 @@ class CloudAIService : AIService {
             isOffline = false,
             confidence = if (hasEvidence) 0.95f else 0.85f,
             isGroundedInMaterial = hasEvidence,
-            modelUsed = primaryModel
+            modelUsed = usedModel
         )
     }
 
@@ -172,7 +177,7 @@ class CloudAIService : AIService {
         }
 
         val rawText = try {
-            executeGeminiRequest(requestJson)
+            executeGeminiRequest(requestJson).first
         } catch (_: Exception) {
             "Overview of ${skill.name} based on course materials."
         }
@@ -235,7 +240,7 @@ class CloudAIService : AIService {
         }
 
         try {
-            val text = executeGeminiRequest(requestJson)
+            val (text, _) = executeGeminiRequest(requestJson)
             val cleanJson = text.trim()
                 .removePrefix("```json")
                 .removePrefix("```")
@@ -271,19 +276,18 @@ class CloudAIService : AIService {
         }
     }
 
-    private fun executeGeminiRequest(payload: JSONObject): String {
-        // Try primary model first, fallback model next if 404
-        val models = listOf(primaryModel, fallbackModel)
+    private fun executeGeminiRequest(payload: JSONObject): Pair<String, String> {
         var lastException: Exception? = null
 
-        for (model in models) {
+        for (model in candidateModels) {
             try {
-                return callModelEndpoint(model, payload)
+                val text = callModelEndpoint(model, payload)
+                return Pair(text, model)
             } catch (e: Exception) {
                 lastException = e
             }
         }
-        throw lastException ?: Exception("Failed to execute Gemini request.")
+        throw lastException ?: Exception("Failed to execute Gemini request across candidate models.")
     }
 
     private fun callModelEndpoint(modelName: String, payload: JSONObject): String {

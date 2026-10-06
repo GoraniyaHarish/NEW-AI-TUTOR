@@ -63,6 +63,7 @@ fun SearchScreen(
 ) {
     val activeCourse by viewModel.activeCourse.collectAsState()
     val activeCourseId by viewModel.activeCourseId.collectAsState()
+    val skills by viewModel.skills.collectAsState()
     val allChunks by viewModel.repository.getChunks(activeCourseId ?: 1L)
         .collectAsState(initial = emptyList())
 
@@ -74,6 +75,11 @@ fun SearchScreen(
         else retriever.search(searchQuery, allChunks, topK = 10)
     }
 
+    val dynamicTags = remember(skills) {
+        if (skills.isNotEmpty()) skills.map { it.name }.take(4)
+        else listOf("Key Concepts", "Formulas", "Definitions", "Summary")
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -81,7 +87,7 @@ fun SearchScreen(
                     Column {
                         Text("Search Course Material", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         Text(
-                            text = "${activeCourse?.title ?: "Physics"} (${allChunks.size} chunks indexed)",
+                            text = "${activeCourse?.title ?: "No Course Selected"} (${allChunks.size} chunks indexed)",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -108,7 +114,7 @@ fun SearchScreen(
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                placeholder = { Text("Search terms, formulas, topics (e.g. Newton, friction, F=ma)...") },
+                placeholder = { Text("Search terms, definitions, principles in your notes...") },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Search,
@@ -132,12 +138,12 @@ fun SearchScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Quick suggestion tags
+            // Quick suggestion tags based on actual skills
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                listOf("Newton's Law", "Friction", "Velocity", "Work & Energy").forEach { queryTag ->
+                dynamicTags.forEach { queryTag ->
                     Surface(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))

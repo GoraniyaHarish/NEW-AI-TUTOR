@@ -16,7 +16,7 @@ object CheatSheetGenerator {
 
     fun generateCheatSheet(skill: SkillEntity): CheatSheetData {
         val name = skill.name
-        val doc = skill.sourceDocumentName.ifBlank { "Physics Notes.pdf" }
+        val doc = skill.sourceDocumentName.ifBlank { "Course Material" }
         val page = skill.sourcePage
 
         return when {

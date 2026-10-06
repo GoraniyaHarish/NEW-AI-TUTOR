@@ -243,7 +243,7 @@ fun QuizScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 SourceCitationChip(
-                                    docName = currentQ.sourceDocumentName.ifBlank { "Physics Notes.pdf" },
+                                    docName = currentQ.sourceDocumentName.ifBlank { "Course Notes" },
                                     page = currentQ.sourcePage
                                 )
 

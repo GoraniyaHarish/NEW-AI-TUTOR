@@ -13,7 +13,12 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36])
 class TutorFoundationTest {
 
     @Test
@@ -136,5 +141,39 @@ class TutorFoundationTest {
         assertEquals("Database_Systems.pdf", explanation.sourceDocName)
         assertEquals(42, explanation.sourcePage)
         assertTrue(explanation.summary.contains("ACID") || explanation.summary.contains("Transactions") || explanation.summary.contains("Atomicity"))
+    }
+
+    @Test
+    fun `router in offline mode strictly routes to local AI and never attempts cloud`() = runBlocking {
+        val networkMonitor = NetworkMonitor(androidx.test.core.app.ApplicationProvider.getApplicationContext())
+        networkMonitor.setOfflineSimulation(true) // offline mode explicitly enabled
+
+        var cloudWasCalled = false
+        val mockCloudAI = object : com.example.ai.cloud.CloudAIService() {
+            override suspend fun answerTutor(
+                query: String,
+                skill: SkillEntity?,
+                relevantChunks: List<DocumentChunkEntity>,
+                courseId: Long,
+                conversationHistory: List<com.example.data.local.entity.ChatMessageEntity>
+            ): TutorResponse {
+                cloudWasCalled = true
+                throw RuntimeException("Cloud should NOT be called in offline mode")
+            }
+        }
+
+        val localAI = LocalAIService()
+        val router = AIRouter(localAI, mockCloudAI, networkMonitor)
+
+        val response = router.answerTutor(
+            query = "What is a database transaction?",
+            skill = null,
+            relevantChunks = emptyList(),
+            courseId = 1
+        )
+
+        assertFalse("Cloud service must never be called when in offline mode", cloudWasCalled)
+        assertTrue("Response must indicate offline mode", response.isOffline)
+        assertEquals("offline-knowledge-base", response.modelUsed)
     }
 }

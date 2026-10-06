@@ -372,7 +372,7 @@ fun LessonScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            SourceCitationChip(docName = skill.sourceDocumentName.ifBlank { "Physics Notes.pdf" }, page = skill.sourcePage)
+                            SourceCitationChip(docName = skill.sourceDocumentName.ifBlank { "Course Notes" }, page = skill.sourcePage)
                             Text(text = "Chapter: ${skill.chapter}", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
@@ -486,10 +486,9 @@ fun LessonScreen(
 
 @Composable
 fun GuidedProblemSolver(skill: com.example.data.local.entity.SkillEntity) {
-    var step by remember { mutableIntStateOf(1) }
     var userFormula by remember { mutableStateOf("") }
     var userCalculation by remember { mutableStateOf("") }
-    var isCorrect by remember { mutableStateOf<Boolean?>(null) }
+    var isSubmitted by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier
@@ -519,7 +518,7 @@ fun GuidedProblemSolver(skill: com.example.data.local.entity.SkillEntity) {
                             Text(text = "1", fontWeight = FontWeight.Bold, color = BrandBluePrimary)
                         }
                         Text(
-                            text = "Step 1: Identify Given Variables",
+                            text = "Step 1: Focus Topic Analysis",
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp
                         )
@@ -527,7 +526,7 @@ fun GuidedProblemSolver(skill: com.example.data.local.entity.SkillEntity) {
 
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
-                        text = "Problem: A crate of mass m = 8 kg is pushed across a level floor with a net force F = 32 N. Find its acceleration.",
+                        text = "Topic: ${skill.name} (${skill.chapter})\nDescription: ${skill.description}",
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurface,
                         lineHeight = 18.sp
@@ -539,7 +538,7 @@ fun GuidedProblemSolver(skill: com.example.data.local.entity.SkillEntity) {
                         color = MaterialTheme.colorScheme.surfaceVariant
                     ) {
                         Text(
-                            text = "• Mass (m) = 8 kg\n• Net Force (F) = 32 N\n• Solve for: Acceleration (a)",
+                            text = "• Source Material: ${skill.sourceDocumentName}\n• Page Reference: Page ${skill.sourcePage}",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
                             modifier = Modifier.padding(10.dp)
@@ -571,7 +570,7 @@ fun GuidedProblemSolver(skill: com.example.data.local.entity.SkillEntity) {
                             Text(text = "2", fontWeight = FontWeight.Bold, color = BrandBluePrimary)
                         }
                         Text(
-                            text = "Step 2: State Applicable Formula",
+                            text = "Step 2: Core Rule or Formula",
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp
                         )
@@ -579,7 +578,7 @@ fun GuidedProblemSolver(skill: com.example.data.local.entity.SkillEntity) {
 
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
-                        text = "Which formula from your notes connects Force, Mass, and Acceleration?",
+                        text = "What is the primary formula, equation, or theoretical principle for ${skill.name}?",
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -588,7 +587,7 @@ fun GuidedProblemSolver(skill: com.example.data.local.entity.SkillEntity) {
                     OutlinedTextField(
                         value = userFormula,
                         onValueChange = { userFormula = it },
-                        placeholder = { Text("e.g. F = m * a or a = F / m") },
+                        placeholder = { Text("Enter rule, definition, or formula...") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
@@ -618,7 +617,7 @@ fun GuidedProblemSolver(skill: com.example.data.local.entity.SkillEntity) {
                             Text(text = "3", fontWeight = FontWeight.Bold, color = BrandBluePrimary)
                         }
                         Text(
-                            text = "Step 3: Calculate Result",
+                            text = "Step 3: Self-Check & Notes Application",
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp
                         )
@@ -626,7 +625,7 @@ fun GuidedProblemSolver(skill: com.example.data.local.entity.SkillEntity) {
 
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
-                        text = "Calculate a = 32 / 8 in m/s²:",
+                        text = "How would you explain or apply ${skill.name} to solve an exam problem?",
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -635,36 +634,34 @@ fun GuidedProblemSolver(skill: com.example.data.local.entity.SkillEntity) {
                     OutlinedTextField(
                         value = userCalculation,
                         onValueChange = { userCalculation = it },
-                        placeholder = { Text("Enter number (e.g. 4)") },
+                        placeholder = { Text("Write your step-by-step reasoning or solution...") },
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                        maxLines = 3
                     )
 
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Button(
                         onClick = {
-                            val clean = userCalculation.trim()
-                            isCorrect = clean == "4" || clean == "4 m/s²" || clean == "4m/s2"
+                            isSubmitted = userFormula.isNotBlank() || userCalculation.isNotBlank()
                         },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp)
                     ) {
-                        Text("Check Guided Solution")
+                        Text("Record Guided Solution")
                     }
 
-                    if (isCorrect != null) {
+                    if (isSubmitted) {
                         Spacer(modifier = Modifier.height(10.dp))
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = if (isCorrect == true) Color(0xFFECFDF5) else Color(0xFFFEF2F2)
+                            color = Color(0xFFECFDF5)
                         ) {
                             Text(
-                                text = if (isCorrect == true) "🎉 Outstanding! a = 32 N / 8 kg = 4 m/s². You derived it using Newton's Second Law."
-                                       else "Try again! Divide 32 by 8.",
+                                text = "✅ Great practice! You formulated key relationships for '${skill.name}'. Use the AI Tutor if you want a detailed review.",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isCorrect == true) BrandEmerald else MaterialTheme.colorScheme.error,
+                                color = BrandEmerald,
                                 modifier = Modifier.padding(10.dp)
                             )
                         }

@@ -272,7 +272,7 @@ fun LearnScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             SourceCitationChip(
-                                docName = skill.sourceDocumentName.ifBlank { "Physics Notes.pdf" },
+                                docName = skill.sourceDocumentName.ifBlank { "Course Notes" },
                                 page = skill.sourcePage
                             )
 

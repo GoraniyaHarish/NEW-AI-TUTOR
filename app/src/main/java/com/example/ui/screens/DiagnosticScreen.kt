@@ -231,7 +231,7 @@ fun DiagnosticScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 SourceCitationChip(
-                                    docName = currentQuestion.sourceDocumentName.ifBlank { "Physics Notes.pdf" },
+                                    docName = currentQuestion.sourceDocumentName.ifBlank { "Course Notes" },
                                     page = currentQuestion.sourcePage
                                 )
 

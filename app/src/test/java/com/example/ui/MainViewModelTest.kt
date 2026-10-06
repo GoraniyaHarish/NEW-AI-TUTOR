@@ -47,14 +47,19 @@ class MainViewModelTest {
     }
 
     @Test
-    fun `initial setup initializes courses and active course`() = runTest(testDispatcher) {
+    fun `fresh installation starts without demo course and demo loading is explicit`() = runTest(testDispatcher) {
         viewModel.repository.ensureInitialData()
         val activeCourseId = viewModel.activeCourseId.value
-        assertNotNull(activeCourseId)
+        // Fresh production install must start empty
+        org.junit.Assert.assertNull("Fresh install must not automatically seed demo course", activeCourseId)
 
-        val course = viewModel.repository.getCourse(activeCourseId!!)
+        // Explicit demo load must work on demand
+        val loadedDemoId = viewModel.repository.resetToDemoCourse()
+        viewModel.selectCourse(loadedDemoId)
+        val course = viewModel.repository.getCourse(loadedDemoId)
         assertNotNull(course)
         assertEquals("Physics", course?.title)
+        assertTrue(course?.isDemo == true)
     }
 
     @Test

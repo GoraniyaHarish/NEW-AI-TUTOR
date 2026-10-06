@@ -339,7 +339,8 @@ class LearnMateRepository(
     }
 
     suspend fun ensureInitialData() = withContext(Dispatchers.IO) {
-        DemoDataLoader.populateDemoCourseIfEmpty(database)
+        // Honest start: do not automatically seed demo course data.
+        // A fresh installation starts with an empty course dashboard unless the user explicitly loads a demo course.
         val firstCourse = database.courseDao().getFirstCourse()
         if (_activeCourseId.value == null && firstCourse != null) {
             _activeCourseId.value = firstCourse.id

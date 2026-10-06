@@ -65,7 +65,7 @@ fun ProfileScreen(
     val totalQuizzes = attempts.size
     val strongCount = diagnostics?.strongSkills?.size ?: 0
     val weakCount = diagnostics?.weakSkills?.size ?: 0
-    val highestStreak = learnerSkills.maxOfOrNull { it.streak } ?: 4
+    val highestStreak = learnerSkills.maxOfOrNull { it.streak } ?: 0
 
     Scaffold(
         topBar = {
@@ -120,7 +120,7 @@ fun ProfileScreen(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "Course: ${activeCourse?.title ?: "Physics"}",
+                                text = "Course: ${activeCourse?.title ?: "No course selected"}",
                                 fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
