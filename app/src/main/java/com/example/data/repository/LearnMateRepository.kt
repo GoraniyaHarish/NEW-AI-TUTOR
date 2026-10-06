@@ -215,51 +215,25 @@ class LearnMateRepository(
                 val titleWords = firstSentence.split(" ").take(4).joinToString(" ")
                 val cleanTitle = if (titleWords.isNotBlank() && titleWords.length < 35) titleWords else "Topic ${index + 1}"
 
-                discoveredSkills.add(
-                    SkillEntity(
-                        courseId = courseId,
-                        name = cleanTitle,
-                        description = firstSentence.ifBlank { "Core subject topic covered on page ${chunk.pageNumber}." },
-                        chapter = "Core Concepts",
-                        difficulty = if (index < 2) "EASY" else if (index < 4) "MEDIUM" else "HARD",
-                        sourceDocumentId = chunk.documentId,
-                        sourceDocumentName = chunk.sourceDocumentName,
-                        sourcePage = chunk.pageNumber,
-                        confidence = 0.88f
+                if (firstSentence.isNotBlank() && cleanTitle.isNotBlank()) {
+                    discoveredSkills.add(
+                        SkillEntity(
+                            courseId = courseId,
+                            name = cleanTitle,
+                            description = firstSentence,
+                            chapter = "Core Concepts",
+                            difficulty = if (index < 2) "EASY" else if (index < 4) "MEDIUM" else "HARD",
+                            sourceDocumentId = chunk.documentId,
+                            sourceDocumentName = chunk.sourceDocumentName,
+                            sourcePage = chunk.pageNumber,
+                            confidence = 0.88f
+                        )
                     )
-                )
+                }
             }
         }
 
-        // 3. Guarantee at least 2 structured topics for any imported material
-        if (discoveredSkills.isEmpty()) {
-            val firstChunk = chunks.firstOrNull()
-            discoveredSkills.add(
-                SkillEntity(
-                    courseId = courseId,
-                    name = "Core Principles",
-                    description = "Fundamental definitions and theoretical models from $docName.",
-                    chapter = "Overview",
-                    difficulty = "EASY",
-                    sourceDocumentName = docName,
-                    sourcePage = firstChunk?.pageNumber ?: 1,
-                    confidence = 0.85f
-                )
-            )
-            discoveredSkills.add(
-                SkillEntity(
-                    courseId = courseId,
-                    name = "Applied Analysis",
-                    description = "Methods, practical applications, and problem-solving techniques from $docName.",
-                    chapter = "Overview",
-                    difficulty = "MEDIUM",
-                    sourceDocumentName = docName,
-                    sourcePage = firstChunk?.pageNumber ?: 1,
-                    confidence = 0.85f
-                )
-            )
-        }
-
+        // Return only genuinely discovered skills from document text (no fabricated generic placeholders)
         return discoveredSkills
     }
 

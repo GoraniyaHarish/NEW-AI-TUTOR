@@ -26,13 +26,12 @@ open class CloudAIService : AIService {
         .writeTimeout(20, TimeUnit.SECONDS)
         .build()
 
-    // Highly responsive, active production Gemini models
-    // Primary: gemini-3.5-flash-lite (fastest, lowest latency, reliable 200 OK)
-    // Fallback: gemini-3.5-flash, then gemini-flash-lite-latest
+    // Officially supported production Gemini models from Google AI Gemini specifications
+    // Primary: gemini-3.5-flash-lite (fast, low latency)
+    // Fallback: gemini-3.5-flash
     private val candidateModels = listOf(
         "gemini-3.5-flash-lite",
-        "gemini-3.5-flash",
-        "gemini-flash-lite-latest"
+        "gemini-3.5-flash"
     )
 
     private val apiKey: String
@@ -66,7 +65,7 @@ open class CloudAIService : AIService {
         }
 
         val topChunk = relevantChunks.firstOrNull()
-        val hasEvidence = relevantChunks.isNotEmpty()
+        val hasEvidence = relevantChunks.isNotEmpty() && topChunk != null && topChunk.text.isNotBlank()
 
         val contextText = if (hasEvidence) {
             relevantChunks.joinToString("\n\n---\n\n") { chunk ->
@@ -127,17 +126,25 @@ open class CloudAIService : AIService {
 
         val (responseText, usedModel) = executeGeminiRequest(requestJson)
 
-        // Strict citation: only cite if top chunk actually exists
-        val citationDoc = if (hasEvidence) topChunk?.sourceDocumentName else null
-        val citationPage = if (hasEvidence) topChunk?.pageNumber else null
+        // Strict deterministic citation & provenance verification:
+        // 1. If no evidence chunks were provided, citation MUST be null and isGroundedInMaterial MUST be false.
+        // 2. If evidence chunks exist, verify that the model did not disclaim finding the material.
+        val disclaimedGrounded = responseText.contains("This topic wasn't found in your uploaded materials", ignoreCase = true) ||
+                responseText.contains("not found in your uploaded", ignoreCase = true)
+
+        val isGrounded = hasEvidence && !disclaimedGrounded
+
+        // Citations ONLY come from actual retrieved chunk metadata present in the request
+        val citationDoc = if (isGrounded) topChunk?.sourceDocumentName else null
+        val citationPage = if (isGrounded) topChunk?.pageNumber else null
 
         TutorResponse(
             answer = responseText,
             sourceDocName = citationDoc,
             sourcePage = citationPage,
             isOffline = false,
-            confidence = if (hasEvidence) 0.95f else 0.85f,
-            isGroundedInMaterial = hasEvidence,
+            confidence = if (isGrounded) 0.95f else 0.85f,
+            isGroundedInMaterial = isGrounded,
             modelUsed = usedModel
         )
     }
@@ -151,12 +158,15 @@ open class CloudAIService : AIService {
         }
 
         val topChunk = relevantChunks.firstOrNull()
-        val hasEvidence = relevantChunks.isNotEmpty()
-        val docName = if (hasEvidence) (topChunk?.sourceDocumentName ?: skill.sourceDocumentName) else skill.sourceDocumentName
-        val pageNum = if (hasEvidence) (topChunk?.pageNumber ?: skill.sourcePage) else skill.sourcePage
+        val hasEvidence = relevantChunks.isNotEmpty() && topChunk != null && topChunk.text.isNotBlank()
+        val docName = if (hasEvidence) topChunk.sourceDocumentName else skill.sourceDocumentName
+        val pageNum = if (hasEvidence) topChunk.pageNumber else skill.sourcePage
 
-        val contextText = relevantChunks.joinToString("\n\n") { it.text }
-            .ifBlank { skill.description }
+        val contextText = if (hasEvidence) {
+            relevantChunks.joinToString("\n\n") { it.text }
+        } else {
+            skill.description
+        }
 
         val prompt = buildString {
             append("You are LearnMate. Create a structured educational lesson explanation for the skill: '${skill.name}'.\n\n")
@@ -176,11 +186,8 @@ open class CloudAIService : AIService {
             put("contents", contents)
         }
 
-        val rawText = try {
-            executeGeminiRequest(requestJson).first
-        } catch (_: Exception) {
-            "Overview of ${skill.name} based on course materials."
-        }
+        // Real cloud call with no fabricated fallback text on error
+        val rawText = executeGeminiRequest(requestJson).first
 
         val summary = rawText.substringAfter("SUMMARY:", "").substringBefore("KEY POINTS:").trim()
             .ifBlank { rawText.take(250) }
@@ -189,13 +196,14 @@ open class CloudAIService : AIService {
         val keyPoints = keyPointsBlock.lines()
             .map { it.trim().removePrefix("-").removePrefix("•").trim() }
             .filter { it.isNotBlank() }
-            .ifEmpty { listOf("Core theoretical foundation", "Key formula / relationship", "Application in practice", "Boundary conditions") }
+            .ifEmpty {
+                listOf("Explanation derived from course materials for ${skill.name}.")
+            }
 
         val examplesBlock = rawText.substringAfter("EXAMPLES:", "").trim()
         val examples = examplesBlock.lines()
             .map { it.trim().removePrefix("-").removePrefix("•").trim() }
             .filter { it.isNotBlank() }
-            .ifEmpty { listOf("Sample problem worked step by step.") }
 
         LessonExplanation(
             title = skill.name,

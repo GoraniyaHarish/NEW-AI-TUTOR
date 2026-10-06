@@ -176,4 +176,145 @@ class TutorFoundationTest {
         assertTrue("Response must indicate offline mode", response.isOffline)
         assertEquals("offline-knowledge-base", response.modelUsed)
     }
+
+    @Test
+    fun `citation provenance verification strictly bounds citation to retrieved chunks`() = runBlocking {
+        val cloudAI = object : com.example.ai.cloud.CloudAIService() {
+            override fun isConfigured(): Boolean = true
+            override suspend fun answerTutor(
+                query: String,
+                skill: SkillEntity?,
+                relevantChunks: List<DocumentChunkEntity>,
+                courseId: Long,
+                conversationHistory: List<com.example.data.local.entity.ChatMessageEntity>
+            ): TutorResponse {
+                val hasEvidence = relevantChunks.isNotEmpty()
+                val topChunk = relevantChunks.firstOrNull()
+                return TutorResponse(
+                    answer = "A database transaction is an atomic unit of execution.",
+                    sourceDocName = if (hasEvidence) topChunk?.sourceDocumentName else null,
+                    sourcePage = if (hasEvidence) topChunk?.pageNumber else null,
+                    isOffline = false,
+                    isGroundedInMaterial = hasEvidence,
+                    modelUsed = "gemini-3.5-flash-lite"
+                )
+            }
+        }
+
+        // Test A: With retrieved chunk -> provenance attached
+        val chunk = DocumentChunkEntity(
+            id = 50,
+            documentId = 2,
+            courseId = 1,
+            sourceDocumentName = "Operating_Systems.pdf",
+            pageNumber = 88,
+            chunkIndex = 0,
+            text = "Deadlock occurs when processes hold resources and wait for others."
+        )
+
+        val groundedResponse = cloudAI.answerTutor(
+            query = "What is deadlock?",
+            skill = null,
+            relevantChunks = listOf(chunk),
+            courseId = 1
+        )
+
+        assertTrue(groundedResponse.isGroundedInMaterial)
+        assertEquals("Operating_Systems.pdf", groundedResponse.sourceDocName)
+        assertEquals(88, groundedResponse.sourcePage)
+
+        // Test B: Empty retrieval -> no citation, grounded=false
+        val ungroundedResponse = cloudAI.answerTutor(
+            query = "What is deadlock?",
+            skill = null,
+            relevantChunks = emptyList(),
+            courseId = 1
+        )
+
+        assertFalse(ungroundedResponse.isGroundedInMaterial)
+        assertNull(ungroundedResponse.sourceDocName)
+        assertNull(ungroundedResponse.sourcePage)
+    }
+
+    @Test
+    fun `skill extraction returns empty list for empty or unstructured document without injecting Core Principles`() = runBlocking {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val db = androidx.room.Room.inMemoryDatabaseBuilder(context, com.example.data.local.database.LearnMateDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+
+        val networkMonitor = NetworkMonitor(context)
+        val cloudAI = com.example.ai.cloud.CloudAIService()
+        val localAI = LocalAIService()
+        val router = AIRouter(localAI, cloudAI, networkMonitor)
+        val retriever = com.example.ai.retrieval.LocalRetriever()
+        val repo = com.example.data.repository.LearnMateRepository(db, router, retriever)
+
+        val courseId = repo.createCourse("General Biology", "Cell biology course")
+
+        // Add document with no readable text chunks
+        repo.addDocument(
+            courseId = courseId,
+            fileName = "empty_scan.pdf",
+            fileType = "PDF",
+            fileSize = "100 KB",
+            extractedChunks = emptyList()
+        )
+
+        repo.processMaterialAndBuildSkillMap(courseId)
+
+        val skills = db.skillDao().getSkillsSync(courseId)
+        assertTrue("No skills should be manufactured when document has 0 text chunks", skills.isEmpty())
+        assertFalse("Must NOT inject 'Core Principles'", skills.any { it.name == "Core Principles" })
+        assertFalse("Must NOT inject 'Applied Analysis'", skills.any { it.name == "Applied Analysis" })
+
+        db.close()
+    }
+
+    @Test
+    fun `skill extraction accurately extracts chapters and topics from structured document`() = runBlocking {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val db = androidx.room.Room.inMemoryDatabaseBuilder(context, com.example.data.local.database.LearnMateDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+
+        val networkMonitor = NetworkMonitor(context)
+        val cloudAI = com.example.ai.cloud.CloudAIService()
+        val localAI = LocalAIService()
+        val router = AIRouter(localAI, cloudAI, networkMonitor)
+        val retriever = com.example.ai.retrieval.LocalRetriever()
+        val repo = com.example.data.repository.LearnMateRepository(db, router, retriever)
+
+        val courseId = repo.createCourse("Data Structures", "Computer science core")
+
+        val chunks = listOf(
+            com.example.core.storage.ExtractedChunk(
+                pageNumber = 1,
+                chunkIndex = 0,
+                text = "Chapter 1: Binary Search Trees\nBinary search trees maintain a sorted invariant where left is smaller and right is larger."
+            ),
+            com.example.core.storage.ExtractedChunk(
+                pageNumber = 5,
+                chunkIndex = 1,
+                text = "Chapter 2: Red-Black Trees\nRed-black trees are self-balancing binary search trees ensuring logarithmic search time."
+            )
+        )
+
+        repo.addDocument(
+            courseId = courseId,
+            fileName = "Algorithms.pdf",
+            fileType = "PDF",
+            fileSize = "2.1 MB",
+            extractedChunks = chunks
+        )
+
+        repo.processMaterialAndBuildSkillMap(courseId)
+
+        val skills = db.skillDao().getSkillsSync(courseId)
+        assertEquals(2, skills.size)
+        assertTrue(skills.any { it.name.contains("Binary Search Trees") })
+        assertTrue(skills.any { it.name.contains("Red-Black Trees") })
+
+        db.close()
+    }
 }

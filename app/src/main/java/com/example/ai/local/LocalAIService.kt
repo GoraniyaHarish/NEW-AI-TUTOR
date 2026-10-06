@@ -158,34 +158,36 @@ class LocalAIService(
         relevantChunks: List<DocumentChunkEntity>
     ): LessonExplanation = withContext(Dispatchers.Default) {
         val topChunk = relevantChunks.firstOrNull()
-        val docName = topChunk?.sourceDocumentName ?: skill.sourceDocumentName
-        val pageNum = topChunk?.pageNumber ?: skill.sourcePage
+        val hasEvidence = relevantChunks.isNotEmpty() && topChunk != null && topChunk.text.isNotBlank()
+        val docName = if (hasEvidence) topChunk.sourceDocumentName else skill.sourceDocumentName
+        val pageNum = if (hasEvidence) topChunk.pageNumber else skill.sourcePage
 
-        val baseText = if (relevantChunks.isNotEmpty()) {
+        val baseText = if (hasEvidence) {
             relevantChunks.joinToString("\n") { it.text }
         } else {
             skill.description
         }
 
         val sentences = baseText.split(Regex("(?<=[.!?])\\s+")).map { it.trim() }.filter { it.isNotBlank() }
-        val summary = sentences.take(2).joinToString(" ").ifBlank {
-            "${skill.name} is a core competency in chapter ${skill.chapter}."
-        }
-
-        val keyPoints = if (sentences.size >= 4) {
-            sentences.drop(2).take(4)
+        val summary = if (sentences.isNotEmpty()) {
+            sentences.take(2).joinToString(" ")
         } else {
-            listOf(
-                "Core definition grounded in your uploaded material.",
-                "Primary mathematical relationship and properties.",
-                "Context within chapter: ${skill.chapter}.",
-                "Foundational concept required for subsequent topics."
-            )
+            "Concept: ${skill.name} from chapter ${skill.chapter}."
         }
 
-        val examples = listOf(
-            "Application of ${skill.name} as referenced in $docName (Page $pageNum)."
-        )
+        val keyPoints = if (sentences.size >= 3) {
+            sentences.drop(2).take(4)
+        } else if (sentences.isNotEmpty()) {
+            sentences.take(2)
+        } else {
+            listOf("Key topic: ${skill.name} in chapter ${skill.chapter}.")
+        }
+
+        val examples = if (hasEvidence) {
+            listOf("Reference in $docName (Page $pageNum).")
+        } else {
+            emptyList()
+        }
 
         LessonExplanation(
             title = skill.name,
