@@ -1,0 +1,393 @@
+package com.example.ui.screens
+
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.UploadFile
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.ui.theme.BrandBluePrimary
+import com.example.ui.viewmodel.MainViewModel
+import com.example.ui.viewmodel.SelectedFileItem
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CreateCourseScreen(
+    viewModel: MainViewModel,
+    onNavigateBack: () -> Unit,
+    onCourseCreated: (Long) -> Unit
+) {
+    var courseName by remember { mutableStateOf("Physics") }
+    var courseDescription by remember { mutableStateOf("Classical mechanics, forces, motion, friction and energy dynamics.") }
+
+    val files = remember {
+        mutableStateListOf(
+            SelectedFileItem("Physics Notes.pdf", "PDF", "2.4 MB"),
+            SelectedFileItem("Physics Syllabus.pdf", "PDF", "480 KB"),
+            SelectedFileItem("Physics Question Paper.pdf", "PDF", "1.1 MB")
+        )
+    }
+
+    var showTextInputDialog by remember { mutableStateOf(false) }
+    var customTextTitle by remember { mutableStateOf("") }
+    var customTextContent by remember { mutableStateOf("") }
+
+    // System File Picker for PDF and documents
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            val name = uri.lastPathSegment ?: "Uploaded_Document.pdf"
+            files.add(
+                SelectedFileItem(
+                    name = name.substringAfterLast('/'),
+                    type = "PDF",
+                    size = "1.8 MB",
+                    uri = uri
+                )
+            )
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Build My Course", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(horizontal = 20.dp)
+                .testTag("build_my_course_screen"),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                item {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Course Details",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    OutlinedTextField(
+                        value = courseName,
+                        onValueChange = { courseName = it },
+                        label = { Text("Course Name") },
+                        placeholder = { Text("e.g. Physics, Chemistry, Biology") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("course_name_input"),
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = courseDescription,
+                        onValueChange = { courseDescription = it },
+                        label = { Text("Description / Scope") },
+                        placeholder = { Text("Brief summary of syllabus or focus chapters") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("course_description_input"),
+                        maxLines = 3,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
+
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Uploaded Material (${files.size})",
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+
+                        Row {
+                            TextButton(
+                                onClick = { showTextInputDialog = true },
+                                modifier = Modifier.testTag("paste_notes_button")
+                            ) {
+                                Text("+ Text / Notes")
+                            }
+                            TextButton(
+                                onClick = { filePickerLauncher.launch("*/*") },
+                                modifier = Modifier.testTag("upload_file_button")
+                            ) {
+                                Icon(imageVector = Icons.Default.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Pick File")
+                            }
+                        }
+                    }
+                }
+
+                itemsIndexed(files) { index, file ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("file_card_$index"),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(42.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(BrandBluePrimary.copy(alpha = 0.1f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = if (file.type == "PDF") Icons.Default.PictureAsPdf else Icons.Default.Description,
+                                        contentDescription = file.type,
+                                        tint = BrandBluePrimary,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = file.name,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = MaterialTheme.colorScheme.surfaceVariant
+                                        ) {
+                                            Text(
+                                                text = file.type,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = file.size,
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "• Ready to parse",
+                                            fontSize = 11.sp,
+                                            color = Color(0xFF059669)
+                                        )
+                                    }
+                                }
+                            }
+
+                            IconButton(
+                                onClick = { files.removeAt(index) },
+                                modifier = Modifier.testTag("delete_file_button_$index")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Delete",
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                    }
+                }
+
+                item {
+                    OutlinedButton(
+                        onClick = {
+                            files.clear()
+                            files.addAll(
+                                listOf(
+                                    SelectedFileItem("Physics Notes.pdf", "PDF", "2.4 MB"),
+                                    SelectedFileItem("Physics Syllabus.pdf", "PDF", "480 KB"),
+                                    SelectedFileItem("Physics Question Paper.pdf", "PDF", "1.1 MB")
+                                )
+                            )
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                            .testTag("load_default_physics_material_button"),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Add Standard Physics Material Bundle")
+                    }
+                }
+            }
+
+            // Bottom CTA
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 16.dp)
+            ) {
+                Button(
+                    onClick = {
+                        if (courseName.isNotBlank() && files.isNotEmpty()) {
+                            viewModel.createCourseWithFiles(
+                                title = courseName,
+                                description = courseDescription,
+                                files = files,
+                                onCreated = { newCourseId ->
+                                    onCourseCreated(newCourseId)
+                                }
+                            )
+                        }
+                    },
+                    enabled = courseName.isNotBlank() && files.isNotEmpty(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                        .testTag("build_my_course_submit_button"),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(
+                        text = "Build My Course (${files.size} documents)",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+
+    if (showTextInputDialog) {
+        AlertDialog(
+            onDismissRequest = { showTextInputDialog = false },
+            title = { Text("Paste Notes / Syllabus Text") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = customTextTitle,
+                        onValueChange = { customTextTitle = it },
+                        label = { Text("Document Title (e.g. Chapter 1 Notes)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = customTextContent,
+                        onValueChange = { customTextContent = it },
+                        label = { Text("Content / Notes") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(150.dp)
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (customTextTitle.isNotBlank() && customTextContent.isNotBlank()) {
+                            files.add(
+                                SelectedFileItem(
+                                    name = "$customTextTitle.txt",
+                                    type = "TXT",
+                                    size = "${(customTextContent.length / 1024) + 1} KB",
+                                    customText = customTextContent
+                                )
+                            )
+                            customTextTitle = ""
+                            customTextContent = ""
+                            showTextInputDialog = false
+                        }
+                    }
+                ) {
+                    Text("Add Notes")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTextInputDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}

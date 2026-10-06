@@ -1,0 +1,8 @@
+{
+  "name": "Remix LearnMate",
+  "description": "Offline-first personalized learning assistant turning student material into adaptive skill graphs, diagnostic tests, and personalized study paths.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
