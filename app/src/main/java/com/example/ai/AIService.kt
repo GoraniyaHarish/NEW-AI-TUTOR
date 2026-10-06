@@ -20,8 +20,8 @@ data class LessonExplanation(
     val summary: String,
     val keyPoints: List<String>,
     val examples: List<String>,
-    val sourceDocName: String,
-    val sourcePage: Int
+    val sourceDocName: String?,
+    val sourcePage: Int?
 )
 
 interface AIService {

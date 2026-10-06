@@ -159,20 +159,24 @@ class LocalAIService(
     ): LessonExplanation = withContext(Dispatchers.Default) {
         val topChunk = relevantChunks.firstOrNull()
         val hasEvidence = relevantChunks.isNotEmpty() && topChunk != null && topChunk.text.isNotBlank()
-        val docName = if (hasEvidence) topChunk.sourceDocumentName else skill.sourceDocumentName
-        val pageNum = if (hasEvidence) topChunk.pageNumber else skill.sourcePage
 
-        val baseText = if (hasEvidence) {
-            relevantChunks.joinToString("\n") { it.text }
-        } else {
-            skill.description
+        if (!hasEvidence || topChunk == null) {
+            return@withContext LessonExplanation(
+                title = skill.name,
+                summary = "No readable course material was available for '${skill.name}'. Please import relevant course notes or documents to generate a grounded explanation.",
+                keyPoints = emptyList(),
+                examples = emptyList(),
+                sourceDocName = null,
+                sourcePage = null
+            )
         }
 
+        val baseText = relevantChunks.joinToString("\n") { it.text }
         val sentences = baseText.split(Regex("(?<=[.!?])\\s+")).map { it.trim() }.filter { it.isNotBlank() }
         val summary = if (sentences.isNotEmpty()) {
             sentences.take(2).joinToString(" ")
         } else {
-            "Concept: ${skill.name} from chapter ${skill.chapter}."
+            "Grounded explanation for ${skill.name} based on retrieved notes."
         }
 
         val keyPoints = if (sentences.size >= 3) {
@@ -180,22 +184,20 @@ class LocalAIService(
         } else if (sentences.isNotEmpty()) {
             sentences.take(2)
         } else {
-            listOf("Key topic: ${skill.name} in chapter ${skill.chapter}.")
-        }
-
-        val examples = if (hasEvidence) {
-            listOf("Reference in $docName (Page $pageNum).")
-        } else {
             emptyList()
         }
+
+        val examples = listOf(
+            "Retrieved passage in ${topChunk.sourceDocumentName} (Page ${topChunk.pageNumber})."
+        )
 
         LessonExplanation(
             title = skill.name,
             summary = summary,
             keyPoints = keyPoints,
             examples = examples,
-            sourceDocName = docName.ifBlank { "Course Material" },
-            sourcePage = pageNum
+            sourceDocName = topChunk.sourceDocumentName,
+            sourcePage = topChunk.pageNumber
         )
     }
 

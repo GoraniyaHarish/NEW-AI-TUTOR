@@ -350,4 +350,49 @@ class TutorFoundationTest {
 
         db.close()
     }
+
+    @Test
+    fun `local generateExplanation with zero retrieved chunks returns honest null citation state and no fabricated points`() = runBlocking {
+        val localAI = LocalAIService()
+        val skill = SkillEntity(
+            id = 101,
+            courseId = 1,
+            name = "Quantum Physics",
+            description = "Quantum mechanics and wave functions",
+            chapter = "Physics",
+            sourceDocumentName = "Fallback.pdf",
+            sourcePage = 10
+        )
+
+        val explanation = localAI.generateExplanation(skill, emptyList())
+        assertTrue(explanation.summary.contains("No readable course material was available"))
+        assertTrue(explanation.keyPoints.isEmpty())
+        assertTrue(explanation.examples.isEmpty())
+        assertNull(explanation.sourceDocName)
+        assertNull(explanation.sourcePage)
+    }
+
+    @Test
+    fun `cloud generateExplanation with zero retrieved chunks returns honest null citation state and no fabricated points`() = runBlocking {
+        val cloudAI = object : com.example.ai.cloud.CloudAIService() {
+            override fun isConfigured(): Boolean = true
+        }
+
+        val skill = SkillEntity(
+            id = 102,
+            courseId = 1,
+            name = "Astrophysics",
+            description = "Stellar evolution",
+            chapter = "Astronomy",
+            sourceDocumentName = "Fallback.pdf",
+            sourcePage = 5
+        )
+
+        val explanation = cloudAI.generateExplanation(skill, emptyList())
+        assertTrue(explanation.summary.contains("No readable course material was available"))
+        assertTrue(explanation.keyPoints.isEmpty())
+        assertTrue(explanation.examples.isEmpty())
+        assertNull(explanation.sourceDocName)
+        assertNull(explanation.sourcePage)
+    }
 }

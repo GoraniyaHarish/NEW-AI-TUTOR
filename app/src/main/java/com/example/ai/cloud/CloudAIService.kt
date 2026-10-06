@@ -153,14 +153,19 @@ open class CloudAIService : AIService {
 
         val topChunk = relevantChunks.firstOrNull()
         val hasEvidence = relevantChunks.isNotEmpty() && topChunk != null && topChunk.text.isNotBlank()
-        val docName = if (hasEvidence) topChunk.sourceDocumentName else skill.sourceDocumentName
-        val pageNum = if (hasEvidence) topChunk.pageNumber else skill.sourcePage
 
-        val contextText = if (hasEvidence) {
-            relevantChunks.joinToString("\n\n") { it.text }
-        } else {
-            skill.description
+        if (!hasEvidence || topChunk == null) {
+            return@withContext LessonExplanation(
+                title = skill.name,
+                summary = "No readable course material was available for '${skill.name}'. Please import relevant course notes or documents to generate a grounded explanation.",
+                keyPoints = emptyList(),
+                examples = emptyList(),
+                sourceDocName = null,
+                sourcePage = null
+            )
         }
+
+        val contextText = relevantChunks.joinToString("\n\n") { it.text }
 
         val prompt = buildString {
             append("You are LearnMate. Create a structured educational lesson explanation for the skill: '${skill.name}'.\n\n")
@@ -180,7 +185,6 @@ open class CloudAIService : AIService {
             put("contents", contents)
         }
 
-        // Real cloud call with no fabricated fallback text on error
         val rawText = executeGeminiRequest(requestJson).first
 
         val summary = rawText.substringAfter("SUMMARY:", "").substringBefore("KEY POINTS:").trim()
@@ -190,9 +194,6 @@ open class CloudAIService : AIService {
         val keyPoints = keyPointsBlock.lines()
             .map { it.trim().removePrefix("-").removePrefix("•").trim() }
             .filter { it.isNotBlank() }
-            .ifEmpty {
-                listOf("Explanation derived from course materials for ${skill.name}.")
-            }
 
         val examplesBlock = rawText.substringAfter("EXAMPLES:", "").trim()
         val examples = examplesBlock.lines()
@@ -204,8 +205,8 @@ open class CloudAIService : AIService {
             summary = summary,
             keyPoints = keyPoints.take(5),
             examples = examples.take(3),
-            sourceDocName = docName.ifBlank { "Course Material" },
-            sourcePage = pageNum
+            sourceDocName = topChunk.sourceDocumentName,
+            sourcePage = topChunk.pageNumber
         )
     }
 
