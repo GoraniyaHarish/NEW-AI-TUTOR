@@ -55,6 +55,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
+import android.provider.OpenableColumns
 import com.example.ui.theme.BrandBluePrimary
 import com.example.ui.viewmodel.MainViewModel
 import com.example.ui.viewmodel.SelectedFileItem
@@ -66,6 +68,7 @@ fun CreateCourseScreen(
     onNavigateBack: () -> Unit,
     onCourseCreated: (Long) -> Unit
 ) {
+    val context = LocalContext.current
     var courseName by remember { mutableStateOf("") }
     var courseDescription by remember { mutableStateOf("") }
 
@@ -82,12 +85,36 @@ fun CreateCourseScreen(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
-            val name = uri.lastPathSegment ?: "Uploaded_Document.pdf"
+            var displayName: String? = null
+            var sizeBytes: Long? = null
+            try {
+                context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                    if (cursor.moveToFirst()) {
+                        if (nameIndex != -1) displayName = cursor.getString(nameIndex)
+                        if (sizeIndex != -1) sizeBytes = cursor.getLong(sizeIndex)
+                    }
+                }
+            } catch (_: Exception) {
+                // Ignore cursor query failure and fall back
+            }
+
+            val finalName = displayName ?: uri.lastPathSegment?.substringAfterLast('/') ?: "Document.pdf"
+            val extension = finalName.substringAfterLast('.', "").uppercase().ifBlank { "PDF" }
+            val currentSizeBytes = sizeBytes
+            val formattedSize = if (currentSizeBytes != null && currentSizeBytes > 0) {
+                if (currentSizeBytes >= 1024 * 1024) String.format("%.1f MB", currentSizeBytes / (1024.0 * 1024.0))
+                else "${(currentSizeBytes / 1024).coerceAtLeast(1)} KB"
+            } else {
+                "Document"
+            }
+
             files.add(
                 SelectedFileItem(
-                    name = name.substringAfterLast('/'),
-                    type = "PDF",
-                    size = "1.8 MB",
+                    name = finalName,
+                    type = extension,
+                    size = formattedSize,
                     uri = uri
                 )
             )
@@ -271,32 +298,6 @@ fun CreateCourseScreen(
                                 )
                             }
                         }
-                    }
-                }
-
-                item {
-                    OutlinedButton(
-                        onClick = {
-                            if (courseName.isBlank()) courseName = "Physics"
-                            if (courseDescription.isBlank()) courseDescription = "Classical mechanics, forces, motion, friction and energy dynamics."
-                            files.clear()
-                            files.addAll(
-                                listOf(
-                                    SelectedFileItem("Physics Notes.pdf", "PDF", "2.4 MB"),
-                                    SelectedFileItem("Physics Syllabus.pdf", "PDF", "480 KB"),
-                                    SelectedFileItem("Physics Question Paper.pdf", "PDF", "1.1 MB")
-                                )
-                            )
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp)
-                            .testTag("load_default_physics_material_button"),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Icon(imageVector = Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Load Sample Physics Material Bundle")
                     }
                 }
             }

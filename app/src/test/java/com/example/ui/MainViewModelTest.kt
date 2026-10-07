@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.example.ai.local.ModelDownloadState
 import com.example.ui.viewmodel.MainViewModel
+import com.example.ui.viewmodel.SelectedFileItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -36,6 +37,8 @@ class MainViewModelTest {
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         application = ApplicationProvider.getApplicationContext()
+        val db = com.example.data.local.database.LearnMateDatabase.getInstance(application)
+        db.clearAllTables()
         viewModel = MainViewModel(application)
         viewModel.modelManager.deleteModel()
     }
@@ -43,6 +46,8 @@ class MainViewModelTest {
     @After
     fun tearDown() {
         viewModel.modelManager.deleteModel()
+        val db = com.example.data.local.database.LearnMateDatabase.getInstance(application)
+        db.clearAllTables()
         Dispatchers.resetMain()
     }
 
@@ -106,5 +111,54 @@ class MainViewModelTest {
         advanceUntilIdle()
         viewModel.selectCourse(999L)
         assertEquals(999L, viewModel.activeCourseId.value)
+    }
+
+    @Test
+    fun `createCourseWithFiles ingests custom material and processes real documents without fake fallbacks`() = runTest(testDispatcher) {
+        advanceUntilIdle()
+        var createdCourseId = 0L
+
+        val customText = """
+            Chapter 1: Principles of Cellular Biology
+            
+            Cells are the basic unit of life in all known living organisms.
+            Every eukaryotic cell contains a membrane-bound nucleus and organelles such as mitochondria.
+        """.trimIndent()
+
+        val files = listOf(
+            SelectedFileItem(
+                name = "Cell_Biology_Notes.txt",
+                type = "TXT",
+                size = "1.2 KB",
+                customText = customText
+            )
+        )
+
+        viewModel.createCourseWithFiles("Biology 101", "Cellular fundamentals", files) { id ->
+            createdCourseId = id
+        }
+        advanceUntilIdle()
+
+        assertTrue(createdCourseId > 0)
+        viewModel.selectCourse(createdCourseId)
+        advanceUntilIdle()
+
+        val course = viewModel.repository.getCourse(createdCourseId)
+        assertNotNull(course)
+        assertEquals("Biology 101", course?.title)
+        assertFalse(course?.isDemo ?: true)
+
+        val docs = viewModel.documents.value
+        assertEquals(1, docs.size)
+        assertEquals("Cell_Biology_Notes.txt", docs.first().fileName)
+
+        // Process materials and verify dynamic skills
+        viewModel.repository.processMaterialAndBuildSkillMap(createdCourseId)
+        advanceUntilIdle()
+
+        val skills = viewModel.skills.value
+        assertTrue("Skills must be extracted from biology document", skills.isNotEmpty())
+        assertTrue("Discovered skill must reflect biology document content", skills.any { it.name.contains("Cellular Biology", ignoreCase = true) })
+        assertFalse("Must not inject hardcoded physics topics", skills.any { it.name.contains("Kinematics", ignoreCase = true) || it.name.contains("Newton", ignoreCase = true) })
     }
 }

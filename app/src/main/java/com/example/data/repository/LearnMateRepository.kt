@@ -181,11 +181,19 @@ class LearnMateRepository(
         // 1. Scan chunks for structured headings or section markers
         val sectionRegex = Regex("(?i)(?:Chapter|Unit|Module|Section|Topic)\\s*[:\\d.-]*\\s*([A-Za-z0-9 ,_'-]{3,50})")
         val lines = chunks.flatMap { chunk ->
-            chunk.text.lines().map { line -> Triple(line.trim(), chunk.pageNumber, chunk.id) }
+            chunk.text.lines().map { line ->
+                object {
+                    val lineText = line.trim()
+                    val pageNum = chunk.pageNumber
+                    val chunkId = chunk.id
+                    val docId = chunk.documentId
+                    val sourceDoc = chunk.sourceDocumentName
+                }
+            }
         }
 
-        for ((line, pageNum, chunkId) in lines) {
-            val match = sectionRegex.find(line)
+        for (item in lines) {
+            val match = sectionRegex.find(item.lineText)
             if (match != null) {
                 val candidateName = match.groupValues[1].trim().trimEnd(':', '.', '-')
                 if (candidateName.length >= 3 && discoveredSkills.none { it.name.equals(candidateName, ignoreCase = true) }) {
@@ -193,12 +201,12 @@ class LearnMateRepository(
                         SkillEntity(
                             courseId = courseId,
                             name = candidateName,
-                            description = "Key concept extracted from $docName: $line",
+                            description = "Key concept extracted from ${item.sourceDoc}: ${item.lineText}",
                             chapter = "Course Module",
                             difficulty = "MEDIUM",
-                            sourceDocumentId = 1L,
-                            sourceDocumentName = docName,
-                            sourcePage = pageNum,
+                            sourceDocumentId = item.docId,
+                            sourceDocumentName = item.sourceDoc,
+                            sourcePage = item.pageNum,
                             confidence = 0.92f
                         )
                     )

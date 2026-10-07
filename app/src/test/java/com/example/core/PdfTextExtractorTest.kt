@@ -64,4 +64,27 @@ class PdfTextExtractorTest {
         assertTrue("Must state failure to extract text", message.contains("Could not extract readable text"))
         org.junit.Assert.assertFalse("Must never inject fake physics content", message.contains("Newton") || message.contains("friction"))
     }
+
+    @Test
+    fun `extractFromPlainText handles arbitrary subjects accurately without physics bias`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val extractor = PdfTextExtractor(context)
+
+        val javaText = """
+            Chapter 1: Variables and Data Types
+            
+            Java is a statically typed programming language. Every variable must have a declared type before use.
+            Primitive types include int, double, boolean, and char. Reference types include classes and arrays.
+            
+            Chapter 2: Control Flow Statements
+            
+            Conditional execution is achieved using if-else statements and switch expressions.
+            Loops include while, do-while, and traditional for loops.
+        """.trimIndent()
+
+        val chunks = extractor.extractFromPlainText(ByteArrayInputStream(javaText.toByteArray(Charsets.UTF_8)))
+        assertTrue("Must extract chunks for computer science curriculum", chunks.isNotEmpty())
+        assertTrue("Chunk text must reflect input document", chunks.any { it.text.contains("statically typed") })
+        org.junit.Assert.assertFalse("Must not inject physics keywords", chunks.any { it.text.contains("kinematics") || it.text.contains("gravity") })
+    }
 }

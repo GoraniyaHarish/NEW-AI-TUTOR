@@ -172,13 +172,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     file.customText != null -> listOf(
                         ExtractedChunk(pageNumber = 1, chunkIndex = 0, text = file.customText)
                     )
-                    else -> listOf(
-                        ExtractedChunk(
-                            pageNumber = 1,
-                            chunkIndex = 0,
-                            text = "Course notes for $title covering core topics and formulas."
-                        )
-                    )
+                    else -> emptyList()
                 }
 
                 repository.addDocument(
