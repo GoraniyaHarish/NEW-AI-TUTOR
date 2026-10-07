@@ -84,21 +84,40 @@ class LearnMateRepository(
         fileName: String,
         fileType: String,
         fileSize: String,
-        extractedChunks: List<ExtractedChunk>
+        extractedChunks: List<ExtractedChunk>,
+        pageCount: Int = 1
     ): Long = withContext(Dispatchers.IO) {
         // Sanitize file name against path traversal
         val sanitizedFileName = fileName.replace(Regex("[^a-zA-Z0-9._-]"), "_")
-        val docId = database.documentDao().insertDocument(
-            DocumentEntity(
-                courseId = courseId,
-                fileName = fileName,
-                filePath = "local/$sanitizedFileName",
-                fileType = fileType,
-                fileSize = fileSize,
-                pageCount = maxOf(1, extractedChunks.maxOfOrNull { it.pageNumber } ?: 1),
-                processed = false
+        
+        // Handle reprocessing/duplicate replacement cleanly
+        val existingDoc = database.documentDao().findDocumentByName(courseId, fileName)
+        val docId = if (existingDoc != null) {
+            database.documentChunkDao().deleteChunksForDocument(existingDoc.id)
+            database.documentDao().insertDocument(
+                existingDoc.copy(
+                    filePath = "local/$sanitizedFileName",
+                    fileType = fileType,
+                    fileSize = fileSize,
+                    pageCount = maxOf(pageCount, extractedChunks.maxOfOrNull { it.pageNumber } ?: 1),
+                    processed = false,
+                    createdAt = System.currentTimeMillis()
+                )
             )
-        )
+            existingDoc.id
+        } else {
+            database.documentDao().insertDocument(
+                DocumentEntity(
+                    courseId = courseId,
+                    fileName = fileName,
+                    filePath = "local/$sanitizedFileName",
+                    fileType = fileType,
+                    fileSize = fileSize,
+                    pageCount = maxOf(pageCount, extractedChunks.maxOfOrNull { it.pageNumber } ?: 1),
+                    processed = false
+                )
+            )
+        }
 
         val chunkEntities = extractedChunks.map {
             DocumentChunkEntity(
@@ -110,61 +129,76 @@ class LearnMateRepository(
                 chunkIndex = it.chunkIndex
             )
         }
-        database.documentChunkDao().insertChunks(chunkEntities)
+        if (chunkEntities.isNotEmpty()) {
+            database.documentChunkDao().insertChunks(chunkEntities)
+        }
         docId
     }
 
-    suspend fun processMaterialAndBuildSkillMap(courseId: Long) = withContext(Dispatchers.IO) {
+    suspend fun processMaterialAndBuildSkillMap(courseId: Long): Boolean = withContext(Dispatchers.IO) {
         val docs = database.documentDao().getDocumentsSync(courseId)
         val chunks = database.documentChunkDao().getChunksSync(courseId)
 
-        // Mark documents as processed
-        for (doc in docs) {
-            database.documentDao().updateProcessed(doc.id, true)
+        // If there are no valid chunks across documents, mark as unprocessed and return false
+        if (chunks.isEmpty() || docs.isEmpty()) {
+            for (doc in docs) {
+                database.documentDao().updateProcessed(doc.id, false)
+            }
+            return@withContext false
         }
 
-        // If no skills exist yet, extract skills from document text/chunks
+        // Mark documents as processed only when chunks genuinely exist
+        for (doc in docs) {
+            val docChunks = chunks.filter { it.documentId == doc.id }
+            val isDocValid = docChunks.isNotEmpty()
+            database.documentDao().updateProcessed(doc.id, isDocValid)
+        }
+
+        // Extract skills from real document chunks
         val existingSkills = database.skillDao().getSkillsSync(courseId)
         if (existingSkills.isEmpty() && chunks.isNotEmpty()) {
             val primaryDoc = docs.firstOrNull()
             val extractedSkills = buildSkillsFromMaterial(courseId, primaryDoc?.fileName ?: "Material", chunks)
-            val skillIds = database.skillDao().insertSkills(extractedSkills)
+            if (extractedSkills.isNotEmpty()) {
+                val skillIds = database.skillDao().insertSkills(extractedSkills)
 
-            // Setup prerequisite relationships based on document structure
-            val relations = mutableListOf<SkillRelationEntity>()
-            for (i in 0 until skillIds.size - 1) {
-                relations.add(
-                    SkillRelationEntity(
-                        courseId = courseId,
-                        fromSkillId = skillIds[i],
-                        toSkillId = skillIds[i + 1],
-                        relationType = "PREREQUISITE"
+                // Setup prerequisite relationships based on document structure
+                val relations = mutableListOf<SkillRelationEntity>()
+                for (i in 0 until skillIds.size - 1) {
+                    relations.add(
+                        SkillRelationEntity(
+                            courseId = courseId,
+                            fromSkillId = skillIds[i],
+                            toSkillId = skillIds[i + 1],
+                            relationType = "PREREQUISITE"
+                        )
                     )
-                )
-            }
-            database.skillRelationDao().insertRelations(relations)
+                }
+                database.skillRelationDao().insertRelations(relations)
 
-            // Initialize learner skills (not assessed)
-            val learnerSkills = skillIds.map { id ->
-                LearnerSkillEntity(
-                    skillId = id,
-                    courseId = courseId,
-                    masteryScore = 0,
-                    confidence = 0.5f,
-                    attempts = 0
-                )
-            }
-            database.learnerSkillDao().insertLearnerSkills(learnerSkills)
+                // Initialize learner skills (not assessed)
+                val learnerSkills = skillIds.map { id ->
+                    LearnerSkillEntity(
+                        skillId = id,
+                        courseId = courseId,
+                        masteryScore = 0,
+                        confidence = 0.5f,
+                        attempts = 0
+                    )
+                }
+                database.learnerSkillDao().insertLearnerSkills(learnerSkills)
 
-            // Generate initial questions
-            val questions = mutableListOf<QuestionEntity>()
-            extractedSkills.zip(skillIds).forEach { (skill, id) ->
-                questions.addAll(aiRouter.generateQuestionsForSkill(skill.copy(id = id), 2, "MEDIUM"))
+                // Generate initial questions
+                val questions = mutableListOf<QuestionEntity>()
+                extractedSkills.zip(skillIds).forEach { (skill, id) ->
+                    questions.addAll(aiRouter.generateQuestionsForSkill(skill.copy(id = id), 2, "MEDIUM"))
+                }
+                database.questionDao().insertQuestions(questions)
             }
-            database.questionDao().insertQuestions(questions)
         }
 
         refreshLearningPlan(courseId)
+        true
     }
 
     /**
@@ -282,7 +316,7 @@ class LearnMateRepository(
 
         // Retrieve chunks
         val allChunks = database.documentChunkDao().getChunksSync(courseId)
-        val retrieved = retriever.search(query, allChunks, topK = 4)
+        val retrieved = retriever.search(query, allChunks, courseId = courseId, topK = 4)
         val relevantChunks = retrieved.map { it.chunk }
 
         val skill = if (skillId != null) database.skillDao().getSkillById(skillId) else null
@@ -310,7 +344,7 @@ class LearnMateRepository(
 
     suspend fun getLessonExplanation(skill: SkillEntity): LessonExplanation = withContext(Dispatchers.IO) {
         val allChunks = database.documentChunkDao().getChunksSync(skill.courseId)
-        val retrieved = retriever.search(skill.name, allChunks, topK = 3)
+        val retrieved = retriever.search(skill.name, allChunks, courseId = skill.courseId, topK = 3)
         aiRouter.generateExplanation(skill, retrieved.map { it.chunk })
     }
 

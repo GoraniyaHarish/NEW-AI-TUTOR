@@ -38,16 +38,22 @@ class MainViewModelTest {
         Dispatchers.setMain(testDispatcher)
         application = ApplicationProvider.getApplicationContext()
         val db = com.example.data.local.database.LearnMateDatabase.getInstance(application)
-        db.clearAllTables()
+        kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
+            db.clearAllTables()
+        }
         viewModel = MainViewModel(application)
         viewModel.modelManager.deleteModel()
     }
 
     @After
     fun tearDown() {
-        viewModel.modelManager.deleteModel()
+        if (::viewModel.isInitialized) {
+            viewModel.modelManager.deleteModel()
+        }
         val db = com.example.data.local.database.LearnMateDatabase.getInstance(application)
-        db.clearAllTables()
+        kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
+            db.clearAllTables()
+        }
         Dispatchers.resetMain()
     }
 
@@ -137,11 +143,26 @@ class MainViewModelTest {
         viewModel.createCourseWithFiles("Biology 101", "Cellular fundamentals", files) { id ->
             createdCourseId = id
         }
-        advanceUntilIdle()
+        
+        // Advance testDispatcher and yield real time for IO pool
+        for (i in 0 until 30) {
+            advanceUntilIdle()
+            if (createdCourseId != 0L) break
+            Thread.sleep(50)
+        }
 
-        assertTrue(createdCourseId > 0)
+        assertTrue("Course ID must be generated > 0", createdCourseId > 0)
         viewModel.selectCourse(createdCourseId)
-        advanceUntilIdle()
+
+        // Launch collectors for StateFlows
+        val docJob = launch { viewModel.documents.collect {} }
+        val skillJob = launch { viewModel.skills.collect {} }
+        
+        for (i in 0 until 30) {
+            advanceUntilIdle()
+            if (viewModel.documents.value.isNotEmpty()) break
+            Thread.sleep(50)
+        }
 
         val course = viewModel.repository.getCourse(createdCourseId)
         assertNotNull(course)
@@ -153,12 +174,21 @@ class MainViewModelTest {
         assertEquals("Cell_Biology_Notes.txt", docs.first().fileName)
 
         // Process materials and verify dynamic skills
-        viewModel.repository.processMaterialAndBuildSkillMap(createdCourseId)
-        advanceUntilIdle()
+        val processed = viewModel.repository.processMaterialAndBuildSkillMap(createdCourseId)
+        assertTrue("Processing material must return true for valid document", processed)
+
+        for (i in 0 until 30) {
+            advanceUntilIdle()
+            if (viewModel.skills.value.isNotEmpty()) break
+            Thread.sleep(50)
+        }
 
         val skills = viewModel.skills.value
         assertTrue("Skills must be extracted from biology document", skills.isNotEmpty())
         assertTrue("Discovered skill must reflect biology document content", skills.any { it.name.contains("Cellular Biology", ignoreCase = true) })
         assertFalse("Must not inject hardcoded physics topics", skills.any { it.name.contains("Kinematics", ignoreCase = true) || it.name.contains("Newton", ignoreCase = true) })
+
+        docJob.cancel()
+        skillJob.cancel()
     }
 }

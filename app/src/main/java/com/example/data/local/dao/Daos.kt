@@ -45,6 +45,9 @@ interface DocumentDao {
     @Query("SELECT * FROM documents WHERE courseId = :courseId")
     suspend fun getDocumentsSync(courseId: Long): List<DocumentEntity>
 
+    @Query("SELECT * FROM documents WHERE courseId = :courseId AND fileName = :fileName LIMIT 1")
+    suspend fun findDocumentByName(courseId: Long, fileName: String): DocumentEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertDocument(document: DocumentEntity): Long
 
@@ -68,6 +71,9 @@ interface DocumentChunkDao {
 
     @Query("DELETE FROM document_chunks WHERE documentId = :docId")
     suspend fun deleteChunksForDocument(docId: Long)
+
+    @Query("DELETE FROM document_chunks WHERE courseId = :courseId")
+    suspend fun deleteChunksForCourse(courseId: Long)
 }
 
 @Dao

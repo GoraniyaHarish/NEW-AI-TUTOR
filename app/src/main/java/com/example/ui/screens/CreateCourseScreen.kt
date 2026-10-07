@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.UploadFile
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -79,6 +80,7 @@ fun CreateCourseScreen(
     var showTextInputDialog by remember { mutableStateOf(false) }
     var customTextTitle by remember { mutableStateOf("") }
     var customTextContent by remember { mutableStateOf("") }
+    var validationErrorMessage by remember { mutableStateOf<String?>(null) }
 
     // System File Picker for PDF and documents
     val filePickerLauncher = rememberLauncherForActivityResult(
@@ -100,9 +102,25 @@ fun CreateCourseScreen(
                 // Ignore cursor query failure and fall back
             }
 
-            val finalName = displayName ?: uri.lastPathSegment?.substringAfterLast('/') ?: "Document.pdf"
-            val extension = finalName.substringAfterLast('.', "").uppercase().ifBlank { "PDF" }
+            val rawName = displayName ?: uri.lastPathSegment?.substringAfterLast('/') ?: "Document.pdf"
+            val sanitizedName = rawName.replace(Regex("[^a-zA-Z0-9._-]"), "_")
+            val extension = sanitizedName.substringAfterLast('.', "").uppercase().ifBlank { "PDF" }
             val currentSizeBytes = sizeBytes
+
+            // Validation: Reject oversized files (> 50 MB)
+            if (currentSizeBytes != null && currentSizeBytes > 50L * 1024L * 1024L) {
+                validationErrorMessage = "File '$sanitizedName' exceeds the 50 MB limit."
+                return@rememberLauncherForActivityResult
+            }
+
+            // Validation: Reject 0-byte empty files
+            if (currentSizeBytes != null && currentSizeBytes == 0L) {
+                validationErrorMessage = "File '$sanitizedName' is empty (0 bytes)."
+                return@rememberLauncherForActivityResult
+            }
+
+            validationErrorMessage = null
+
             val formattedSize = if (currentSizeBytes != null && currentSizeBytes > 0) {
                 if (currentSizeBytes >= 1024 * 1024) String.format("%.1f MB", currentSizeBytes / (1024.0 * 1024.0))
                 else "${(currentSizeBytes / 1024).coerceAtLeast(1)} KB"
@@ -110,14 +128,19 @@ fun CreateCourseScreen(
                 "Document"
             }
 
-            files.add(
-                SelectedFileItem(
-                    name = finalName,
-                    type = extension,
-                    size = formattedSize,
-                    uri = uri
-                )
+            // Replace existing duplicate if already picked
+            val existingIndex = files.indexOfFirst { it.name.equals(sanitizedName, ignoreCase = true) }
+            val newItem = SelectedFileItem(
+                name = sanitizedName,
+                type = extension,
+                size = formattedSize,
+                uri = uri
             )
+            if (existingIndex >= 0) {
+                files[existingIndex] = newItem
+            } else {
+                files.add(newItem)
+            }
         }
     }
 
@@ -183,6 +206,36 @@ fun CreateCourseScreen(
                 }
 
                 item {
+                    if (validationErrorMessage != null) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .testTag("validation_error_banner")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Warning,
+                                    contentDescription = "Error",
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = validationErrorMessage ?: "",
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,

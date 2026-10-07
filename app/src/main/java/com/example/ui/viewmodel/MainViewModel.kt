@@ -9,7 +9,10 @@ import com.example.ai.cloud.CloudAIService
 import com.example.ai.local.LocalAIService
 import com.example.ai.retrieval.LocalRetriever
 import com.example.core.network.NetworkMonitor
+import com.example.core.storage.DocumentTextProcessor
 import com.example.core.storage.ExtractedChunk
+import com.example.core.storage.ExtractedPage
+import com.example.core.storage.IngestionResult
 import com.example.core.storage.PdfTextExtractor
 import com.example.data.local.database.LearnMateDatabase
 import com.example.data.local.entity.ChatMessageEntity
@@ -167,12 +170,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val courseId = repository.createCourse(title, description)
 
             for (file in files) {
-                val chunks = when {
-                    file.uri != null -> pdfExtractor.extractTextFromUri(file.uri, file.name)
-                    file.customText != null -> listOf(
-                        ExtractedChunk(pageNumber = 1, chunkIndex = 0, text = file.customText)
-                    )
-                    else -> emptyList()
+                var extractedChunks: List<ExtractedChunk> = emptyList()
+                var pageCount = 1
+
+                when {
+                    file.uri != null -> {
+                        when (val result = pdfExtractor.extractTextFromUri(file.uri, file.name)) {
+                            is IngestionResult.Success -> {
+                                extractedChunks = result.chunks
+                                pageCount = result.pageCount
+                            }
+                            is IngestionResult.Failure -> {
+                                extractedChunks = emptyList()
+                                pageCount = 1
+                            }
+                        }
+                    }
+                    file.customText != null -> {
+                        val normalized = DocumentTextProcessor.normalizeText(file.customText)
+                        if (normalized.isNotBlank()) {
+                            extractedChunks = DocumentTextProcessor.chunkPages(listOf(ExtractedPage(pageNumber = 1, text = normalized)))
+                            pageCount = 1
+                        }
+                    }
                 }
 
                 repository.addDocument(
@@ -180,7 +200,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     fileName = file.name,
                     fileType = file.type,
                     fileSize = file.size,
-                    extractedChunks = chunks
+                    extractedChunks = extractedChunks,
+                    pageCount = pageCount
                 )
             }
 
