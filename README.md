@@ -1,0 +1,209 @@
+# LearnMate
+
+> **Offline-first personalized learning assistant that turns a student's own study materials into grounded tutoring, adaptive mastery tracking, and personalized study plans.**
+
+[![Platform](https://img.shields.io/badge/Platform-Android-3DDC84.svg?logo=android&logoColor=white)](https://www.android.com/)
+[![Language](https://img.shields.io/badge/Kotlin-2.2.21-7F52FF.svg?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
+[![UI](https://img.shields.io/badge/Jetpack%20Compose-M3-4285F4.svg)](https://developer.android.com/jetpack/compose)
+[![Database](https://img.shields.io/badge/Room-SQLite-276DC3.svg)](https://developer.android.com/training/data-storage/room)
+[![Build](https://img.shields.io/badge/Gradle-9.3.1-02303A.svg?logo=gradle&logoColor=white)](https://gradle.org/)
+[![Tests](https://img.shields.io/badge/Unit%20Tests-100%25%20Passing-success.svg)](#reproducibility--testing)
+
+---
+
+## Why LearnMate?
+
+Students often face major challenges with generic online learning tools:
+- **No Direct Grounding in Course Materials**: Generic chatbots hallucinate concepts that contradict course lecture notes or textbooks.
+- **Connectivity Gaps**: Many students lack continuous high-speed internet while commuting or studying in areas with intermittent access.
+- **One-Size-Fits-All Pace**: Standard study guides do not adapt dynamically to individual weak spots or prerequisite gaps.
+- **Privacy Concerns**: Students are often required to upload private school documents and study materials to unvetted cloud servers.
+
+LearnMate solves these problems with an **offline-first, document-grounded architecture** that runs core indexing, retrieval, assessment, and tutoring locally on Android.
+
+---
+
+## What LearnMate Does
+
+LearnMate powers a closed-loop personalized learning cycle:
+
+```
+Student Material (PDF / Text)
+       ↓
+Local Ingestion & Chunking (PdfBox-Android)
+       ↓
+Local Knowledge Base (Room SQLite)
+       ↓
+Local BM25 Retrieval (<50ms on-device)
+       ↓
+Grounded Tutor (Offline Deterministic / Online Gemini)
+       ↓
+Interactive Assessment & Quizzes
+       ↓
+Skill Mastery Tracking (SM-2 Spaced Repetition)
+       ↓
+Personalized Next Step & Study Path
+```
+
+---
+
+## Key Features
+
+- **Document Ingestion**: Parse PDF and text notes locally into structured, searchable text chunks preserving source file and page metadata.
+- **BM25 Local Retrieval**: Fast on-device lexical search ranking relevant study chunks without server round-trips.
+- **Grounded AI Tutoring**: Socratic responses grounded strictly in the student's study material, preventing fabricated citations.
+- **Interactive Quizzes**: Diagnostic and practice assessments with automated scoring and instant feedback.
+- **Skill Mastery Tracking**: Continuous mastery metrics derived from quiz performance and knowledge retention.
+- **Adaptive Study Plans**: Prerequisite tree evaluation recommending the highest-priority topics.
+- **Spaced Repetition Scheduler**: SuperMemo-2 (SM-2) algorithm determining review intervals and ease factors.
+- **Text-to-Speech (TTS)**: Built-in Android TTS support for audio-assisted learning.
+- **Offline-First Resilience**: All core functions work completely offline without network or third-party cloud accounts.
+
+---
+
+## Offline vs Online Capabilities
+
+| Capability | Offline (Local Device) | Online (Connected + Key) |
+| :--- | :---: | :---: |
+| **Material Ingestion & PDF Extraction** | **Full** (Local Room & PdfBox) | **Full** |
+| **BM25 Search & Chunk Indexing** | **Full** (<50ms on-device) | **Full** |
+| **Quiz Generation & Evaluation** | **Full** (Deterministic engine) | **Enhanced** (Dynamic generation) |
+| **Mastery & Prerequisite Tracking** | **Full** (Local database) | **Full** |
+| **Spaced Repetition (SM-2)** | **Full** (Local scheduler) | **Full** |
+| **Document-Grounded Tutoring** | **Full** (Grounded chunk extracts) | **Enhanced** (Gemini Socratic dialog) |
+| **On-Device Neural Model** | *Deferred / In Roadmap* | N/A |
+
+> **Note on Local Neural Model**: While BM25 search, document indexing, quiz evaluation, mastery tracking, and deterministic tutoring run 100% locally on-device, large-parameter neural LLM inference (e.g. MediaPipe / On-device SLMs) is architectural and planned for future iterations.
+
+---
+
+## Grounding & Trust
+
+LearnMate strictly enforces document provenance:
+1. **Query Extraction**: The student's question generates targeted keywords.
+2. **Context Retrieval**: BM25 ranks top matching chunks directly from the student's uploaded notes.
+3. **Context Injection**: The AI is instructed to synthesize answers exclusively from verified source passages.
+4. **Provenance Guard**: Responses cite exact source filenames and passages without inventing references.
+
+---
+
+## Adaptive Learning System
+
+LearnMate replaces static flashcards with dynamic adaptation:
+- **Prerequisite Graphs**: Pinpoints foundational gaps before advancing to complex topics.
+- **Continuous Mastery Scoring**: Scores reflect recent quiz results with decay modeling for unrevisited concepts.
+- **SM-2 Algorithm**: Calculates optimal review intervals based on difficulty and recall accuracy.
+
+---
+
+## System Architecture
+
+```
++-------------------------------------------------------------+
+|                      Jetpack Compose UI                     |
+|           (Material 3, Dark/Light Mode, Touch-First)        |
++-------------------------------------------------------------+
+                              |
+                              v
++-------------------------------------------------------------+
+|                        MainViewModel                        |
+|             (Kotlin Coroutines, Reactive StateFlow)         |
++-------------------------------------------------------------+
+           |                                       |
+           v                                       v
++-----------------------+              +----------------------+
+|    Learning Engine    |              | Ingestion & Retrieval|
+| - MasteryCalculator   |              | - PdfTextExtractor   |
+| - SpacedRepetition    |              | - TextChunker        |
+| - QuizEvaluator       |              | - BM25OkapiRetriever |
+| - Personalization     |              |                      |
++-----------------------+              +----------------------+
+           |                                       |
+           +-------------------+-------------------+
+                               |
+                               v
++-------------------------------------------------------------+
+|                     Room SQLite Database                    |
+|          (Documents, Chunks, Mastery, Quizzes, Items)       |
++-------------------------------------------------------------+
+                               |
+                               v
++-------------------------------------------------------------+
+|                       Tutor Provider                        |
+|      [Online: Gemini API]  |  [Offline: Deterministic]      |
++-------------------------------------------------------------+
+```
+
+---
+
+## Quickstart & Reproducibility
+
+### Prerequisites
+- JDK 17 or JDK 21 (Temurin JDK 21 recommended)
+- Android SDK (API Level 26–35)
+
+### Clone & Build
+```bash
+# Clone the repository
+git clone https://github.com/GoraniyaHarish/NEW-AI-TUTOR.git
+cd NEW-AI-TUTOR
+
+# Copy example environment configuration
+cp .env.example .env
+
+# Verify Gradle wrapper
+./gradlew --version
+
+# Run all unit and Robolectric tests (13 test suites)
+./gradlew :app:testDebugUnitTest
+
+# Build debug APK
+./gradlew :app:assembleDebug
+```
+
+The APK will be generated at `app/build/outputs/apk/debug/app-debug.apk`.
+
+---
+
+## Project Structure
+
+```
+NEW-AI-TUTOR/
+├── app/                  # Android application module
+│   ├── src/main/java/    # Kotlin Jetpack Compose and architecture source
+│   ├── src/test/java/    # 13 comprehensive unit and Robolectric test suites
+│   └── build.gradle.kts  # App-level build configuration
+├── docs/                 # Authoritative project documentation
+│   ├── ARCHITECTURE.md   # System design and component interactions
+│   ├── DEVELOPMENT.md    # Build instructions, test verification, and setup
+│   ├── PROJECT_DEFINITION.md
+│   ├── AI_ENGINEERING_RULES.md
+│   ├── CURRENT_PROJECT_AUDIT.md
+│   └── PRESENTATION_DECK.md
+├── submission/           # Hackathon presentation and submission assets
+│   ├── The_Visionaries_CT3Y_LearnMate.pptx
+│   └── presentation.html
+├── gradle/               # Gradle wrapper and version catalog
+│   ├── libs.versions.toml
+│   └── wrapper/
+├── .env.example          # Environment variable template
+├── .gitignore            # Git exclusion rules
+├── build.gradle.kts      # Root build configuration
+├── settings.gradle.kts   # Root settings configuration
+├── gradlew               # Gradle wrapper executable
+└── README.md             # Project overview and quickstart
+```
+
+---
+
+## Hackathon Submission
+
+- **Event**: Code Carnival 3.0
+- **Problem Statement**: PS-06 On-device personalized learning assistant
+- **Team**: The Visionaries (`CT3Y`)
+- **Team Members**:
+  - Harish Goraniya (Leader)
+  - Krishna Parmar
+  - Prushti Seladiya
+  - Sakshi Talaviya
+- **Submission Deck**: `submission/The_Visionaries_CT3Y_LearnMate.pptx`
