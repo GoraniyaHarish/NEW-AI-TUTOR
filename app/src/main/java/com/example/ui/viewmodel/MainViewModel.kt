@@ -1,6 +1,7 @@
 package com.example.ui.viewmodel
 
 import android.app.Application
+import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -54,14 +55,24 @@ data class SelectedFileItem(
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val database = LearnMateDatabase.getInstance(application)
+    private val sharedPrefs = application.getSharedPreferences("learnmate_prefs", Context.MODE_PRIVATE)
+
+    private val _isOnboardingCompleted = MutableStateFlow(sharedPrefs.getBoolean("onboarding_completed", false))
+    val isOnboardingCompleted: StateFlow<Boolean> = _isOnboardingCompleted.asStateFlow()
+
+    fun setOnboardingCompleted(completed: Boolean) {
+        sharedPrefs.edit().putBoolean("onboarding_completed", completed).apply()
+        _isOnboardingCompleted.value = completed
+    }
+
     val networkMonitor = NetworkMonitor(application)
-    private val localAI = LocalAIService()
+    val modelManager = com.example.ai.local.OnDeviceModelManager(application)
+    private val localAI = LocalAIService(com.example.ai.local.DynamicLocalModelEngine(modelManager))
     private val cloudAI = CloudAIService()
     private val aiRouter = AIRouter(localAI, cloudAI, networkMonitor)
     private val retriever = LocalRetriever()
     val repository = LearnMateRepository(database, aiRouter, retriever)
     private val pdfExtractor = PdfTextExtractor(application)
-    val modelManager = com.example.ai.local.OnDeviceModelManager(application)
 
     val modelDownloadState = modelManager.downloadState
     val isNeuralEngineEnabled = modelManager.isNeuralEngineEnabled
@@ -214,15 +225,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _processingProgress.value = 0f
             _currentStageIndex.value = 0
 
-            val totalStages = 7
-            for (i in 0 until totalStages) {
-                _currentStageIndex.value = i
-                _processingProgress.value = (i + 1).toFloat() / totalStages.toFloat()
-                delay(400) // realistic smooth progress for hackathon presentation
+            repository.processMaterialAndBuildSkillMap(courseId) { stageIndex, progress ->
+                _currentStageIndex.value = stageIndex
+                _processingProgress.value = progress
             }
-
-            repository.processMaterialAndBuildSkillMap(courseId)
-            delay(300)
             onCompleted()
         }
     }
@@ -253,11 +259,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                 val current = database.learnerSkillDao().getLearnerSkill(skillId)
                 val prevMastery = current?.masteryScore ?: 0
+                val isFirst = current == null || current.attempts == 0
                 val result = MasteryCalculator.calculateUpdatedMastery(
                     previousMastery = prevMastery,
                     totalQuestions = skillQuestions.size,
                     correctAnswers = correct,
-                    hintsUsed = hintsCount
+                    hintsUsed = hintsCount,
+                    isFirstAttempt = isFirst
                 )
 
                 database.learnerSkillDao().upsertLearnerSkill(
@@ -294,13 +302,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val skill = database.skillDao().getSkillById(skillId) ?: return@launch
             val current = database.learnerSkillDao().getLearnerSkill(skillId)
             val prevMastery = current?.masteryScore ?: 0
+            val isFirst = current == null || current.attempts == 0
 
             val eval = QuizEvaluator.evaluateQuiz(
                 questions = questions,
                 userAnswers = userAnswers,
                 hintsUsedMap = hintsUsedMap,
                 previousMastery = prevMastery,
-                currentStreak = current?.streak ?: 0
+                currentStreak = current?.streak ?: 0,
+                isFirstAttempt = isFirst
             )
             _lastQuizEvaluation.value = eval
 

@@ -204,41 +204,44 @@ class LocalAIService(
     override suspend fun generateQuestionsForSkill(
         skill: SkillEntity,
         count: Int,
-        difficulty: String
+        difficulty: String,
+        relevantChunks: List<DocumentChunkEntity>
     ): List<QuestionEntity> = withContext(Dispatchers.Default) {
-        // Deterministic generic question generator based on skill metadata (works for any subject)
+        val topChunk = relevantChunks.firstOrNull { it.text.isNotBlank() }
+        if (topChunk == null || topChunk.text.isBlank()) {
+            return@withContext emptyList()
+        }
+
+        val snippet = topChunk.text.split(Regex("(?<=[.!?])\\s+")).firstOrNull()?.trim() ?: topChunk.text.take(120)
+        
+        // Vary correct answer index deterministically from 0 to 3 using java.util.Random with a deterministic seed
+        val seed = skill.id * 31L + count * 17L + topChunk.id * 7L + difficulty.hashCode()
+        val correctIndex = java.util.Random(seed).nextInt(4)
+
+        val optionsList = mutableListOf(
+            "An unrelated concept from an out-of-scope chapter.",
+            "A contradictory statement explicitly disproven in the text.",
+            "A hypothetical theorem with no empirical grounding."
+        )
+        // Deterministically insert snippet at correctIndex
+        optionsList.add(correctIndex, snippet)
+
         val q1 = QuestionEntity(
             courseId = skill.courseId,
             skillId = skill.id,
-            questionText = "Which statement best describes the primary definition of ${skill.name} according to your course syllabus?",
-            optionA = skill.description.ifBlank { "${skill.name} fundamental principle" },
-            optionB = "A secondary non-essential effect unrelated to ${skill.chapter}.",
-            optionC = "A historical term with no modern analytical application.",
-            optionD = "An unverified hypothesis disproven by subsequent research.",
-            correctAnswerIndex = 0,
-            explanation = "Verified directly from course syllabus definition for ${skill.name}.",
+            questionText = "According to document '${topChunk.sourceDocumentName}' (Page ${topChunk.pageNumber}), which statement accurately reflects '${skill.name}'?",
+            optionA = optionsList[0],
+            optionB = optionsList[1],
+            optionC = optionsList[2],
+            optionD = optionsList[3],
+            correctAnswerIndex = correctIndex,
+            explanation = "Verified directly from page ${topChunk.pageNumber} of ${topChunk.sourceDocumentName}.",
             difficulty = difficulty,
-            hint = "Recall the chapter context: ${skill.chapter}.",
-            sourceDocumentName = skill.sourceDocumentName,
-            sourcePage = skill.sourcePage
+            hint = "Check page ${topChunk.pageNumber} in ${topChunk.sourceDocumentName}.",
+            sourceDocumentName = topChunk.sourceDocumentName,
+            sourcePage = topChunk.pageNumber
         )
 
-        val q2 = QuestionEntity(
-            courseId = skill.courseId,
-            skillId = skill.id,
-            questionText = "In the context of chapter '${skill.chapter}', why is mastery of '${skill.name}' critical?",
-            optionA = "It serves as a core foundational concept for advanced problem solving.",
-            optionB = "It only applies to introductory overview topics.",
-            optionC = "It is optional and superseded by other formulas.",
-            optionD = "It has no prerequisites and requires no practice.",
-            correctAnswerIndex = 0,
-            explanation = "Understanding ${skill.name} unlocks prerequisite dependencies across ${skill.chapter}.",
-            difficulty = difficulty,
-            hint = "Consider the role of ${skill.name} in your learning map.",
-            sourceDocumentName = skill.sourceDocumentName,
-            sourcePage = skill.sourcePage
-        )
-
-        listOf(q1, q2).take(count)
+        listOf(q1).take(count)
     }
 }

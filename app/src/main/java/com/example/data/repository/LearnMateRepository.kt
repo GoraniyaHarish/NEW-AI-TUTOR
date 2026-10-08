@@ -135,7 +135,11 @@ class LearnMateRepository(
         docId
     }
 
-    suspend fun processMaterialAndBuildSkillMap(courseId: Long): Boolean = withContext(Dispatchers.IO) {
+    suspend fun processMaterialAndBuildSkillMap(
+        courseId: Long,
+        onProgress: (suspend (Int, Float) -> Unit)? = null
+    ): Boolean = withContext(Dispatchers.IO) {
+        onProgress?.invoke(0, 1f / 7f)
         val docs = database.documentDao().getDocumentsSync(courseId)
         val chunks = database.documentChunkDao().getChunksSync(courseId)
 
@@ -147,6 +151,7 @@ class LearnMateRepository(
             return@withContext false
         }
 
+        onProgress?.invoke(1, 2f / 7f)
         // Mark documents as processed only when chunks genuinely exist
         for (doc in docs) {
             val docChunks = chunks.filter { it.documentId == doc.id }
@@ -154,14 +159,20 @@ class LearnMateRepository(
             database.documentDao().updateProcessed(doc.id, isDocValid)
         }
 
+        onProgress?.invoke(2, 3f / 7f)
         // Extract skills from real document chunks
         val existingSkills = database.skillDao().getSkillsSync(courseId)
+        
+        onProgress?.invoke(3, 4f / 7f)
         if (existingSkills.isEmpty() && chunks.isNotEmpty()) {
             val primaryDoc = docs.firstOrNull()
             val extractedSkills = buildSkillsFromMaterial(courseId, primaryDoc?.fileName ?: "Material", chunks)
+            
+            onProgress?.invoke(4, 5f / 7f)
             if (extractedSkills.isNotEmpty()) {
                 val skillIds = database.skillDao().insertSkills(extractedSkills)
 
+                onProgress?.invoke(5, 6f / 7f)
                 // Setup prerequisite relationships based on document structure
                 val relations = mutableListOf<SkillRelationEntity>()
                 for (i in 0 until skillIds.size - 1) {
@@ -188,15 +199,19 @@ class LearnMateRepository(
                 }
                 database.learnerSkillDao().insertLearnerSkills(learnerSkills)
 
-                // Generate initial questions
+                // Generate initial questions using retrieved chunks
                 val questions = mutableListOf<QuestionEntity>()
                 extractedSkills.zip(skillIds).forEach { (skill, id) ->
-                    questions.addAll(aiRouter.generateQuestionsForSkill(skill.copy(id = id), 2, "MEDIUM"))
+                    questions.addAll(aiRouter.generateQuestionsForSkill(skill.copy(id = id), 2, "MEDIUM", chunks))
                 }
                 database.questionDao().insertQuestions(questions)
             }
+        } else {
+            onProgress?.invoke(4, 5f / 7f)
+            onProgress?.invoke(5, 6f / 7f)
         }
 
+        onProgress?.invoke(6, 1.0f)
         refreshLearningPlan(courseId)
         true
     }

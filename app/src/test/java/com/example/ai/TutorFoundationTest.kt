@@ -395,4 +395,94 @@ class TutorFoundationTest {
         assertNull(explanation.sourceDocName)
         assertNull(explanation.sourcePage)
     }
+
+    @Test
+    fun `local generateQuestionsForSkill correct answer is deterministically varying and valid`() = runBlocking {
+        val localAI = LocalAIService()
+        val chunk1 = DocumentChunkEntity(
+            id = 1001,
+            documentId = 5,
+            courseId = 1,
+            sourceDocumentName = "Java_Basics.pdf",
+            pageNumber = 17,
+            chunkIndex = 2,
+            text = "Inheritance is a key mechanism of OOP."
+        )
+        val skill1 = SkillEntity(
+            id = 5001,
+            courseId = 1,
+            name = "Inheritance",
+            description = "Subclassing and code reuse",
+            chapter = "OOP"
+        )
+
+        val correctIndices = mutableSetOf<Int>()
+        
+        for (i in 0..15) {
+            val skill = skill1.copy(id = 5001L + i)
+            val chunk = chunk1.copy(id = 1001L + i * 17)
+            val difficulty = if (i % 2 == 0) "MEDIUM" else "HARD"
+            
+            val questions = localAI.generateQuestionsForSkill(skill, 1, difficulty, listOf(chunk))
+            assertFalse(questions.isEmpty())
+            val q = questions.first()
+            
+            val correctIdx = q.correctAnswerIndex
+            println("DEBUG: i=$i, correctIdx=$correctIdx, skill.id=${skill.id}, chunk.id=${chunk.id}, difficulty=$difficulty")
+            assertTrue("Correct answer index must be in range 0..3", correctIdx in 0..3)
+            correctIndices.add(correctIdx)
+            
+            val chosenText = when (correctIdx) {
+                0 -> q.optionA
+                1 -> q.optionB
+                2 -> q.optionC
+                3 -> q.optionD
+                else -> ""
+            }
+            assertEquals("Inheritance is a key mechanism of OOP.", chosenText)
+            
+            val allOptions = listOf(q.optionA, q.optionB, q.optionC, q.optionD)
+            val distractors = allOptions.toMutableList().apply { removeAt(correctIdx) }
+            for (distractor in distractors) {
+                assertFalse(distractor == chosenText)
+                assertTrue(distractor.isNotBlank())
+            }
+        }
+        
+        assertTrue("Correct answer index should vary across different questions", correctIndices.size > 1)
+    }
+
+    @Test
+    fun `local generateQuestionsForSkill repeated generation is deterministic`() = runBlocking {
+        val localAI = LocalAIService()
+        val chunk = DocumentChunkEntity(
+            id = 1001,
+            documentId = 5,
+            courseId = 1,
+            sourceDocumentName = "Java_Basics.pdf",
+            pageNumber = 17,
+            chunkIndex = 2,
+            text = "Polymorphism allows dynamic method dispatch."
+        )
+        val skill = SkillEntity(
+            id = 5001,
+            courseId = 1,
+            name = "Polymorphism",
+            description = "Dynamic method dispatch and polymorphism",
+            chapter = "OOP"
+        )
+
+        val questions1 = localAI.generateQuestionsForSkill(skill, 1, "MEDIUM", listOf(chunk))
+        val questions2 = localAI.generateQuestionsForSkill(skill, 1, "MEDIUM", listOf(chunk))
+
+        assertEquals(questions1.size, questions2.size)
+        val q1 = questions1.first()
+        val q2 = questions2.first()
+
+        assertEquals(q1.correctAnswerIndex, q2.correctAnswerIndex)
+        assertEquals(q1.optionA, q2.optionA)
+        assertEquals(q1.optionB, q2.optionB)
+        assertEquals(q1.optionC, q2.optionC)
+        assertEquals(q1.optionD, q2.optionD)
+    }
 }

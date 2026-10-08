@@ -63,4 +63,33 @@ class MasteryCalculatorTest {
 
         assertTrue("Mastery without hints should be strictly higher than with hints", withoutHints.newMastery > withHints.newMastery)
     }
+
+    @Test
+    fun `isFirstAttempt distinguishes first ever attempt from subsequent zero mastery attempts`() {
+        // Subsequent attempt starting with 0 previous mastery (e.g. they failed first attempt)
+        val subsequentZeroMastery = MasteryCalculator.calculateUpdatedMastery(
+            previousMastery = 0,
+            totalQuestions = 4,
+            correctAnswers = 2, // 50% score
+            difficulty = "MEDIUM",
+            hintsUsed = 0,
+            isFirstAttempt = false // not the first attempt!
+        )
+
+        // First ever attempt with same score
+        val firstEverAttempt = MasteryCalculator.calculateUpdatedMastery(
+            previousMastery = 0,
+            totalQuestions = 4,
+            correctAnswers = 2, // 50% score
+            difficulty = "MEDIUM",
+            hintsUsed = 0,
+            isFirstAttempt = true // first attempt!
+        )
+
+        // First ever attempt should take targetScore (50%) directly.
+        // Subsequent attempt with 0 mastery should blend 60% of new (50%) with 40% of previous (0%) = 30%.
+        assertEquals(50, firstEverAttempt.newMastery)
+        assertEquals(30, subsequentZeroMastery.newMastery)
+        assertTrue("First ever attempt with same score should be higher than blended zero-mastery subsequent attempt", firstEverAttempt.newMastery > subsequentZeroMastery.newMastery)
+    }
 }

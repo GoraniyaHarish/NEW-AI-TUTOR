@@ -45,7 +45,8 @@ object MasteryCalculator {
         correctAnswers: Int,
         difficulty: String = "MEDIUM",
         hintsUsed: Int = 0,
-        currentStreak: Int = 0
+        currentStreak: Int = 0,
+        isFirstAttempt: Boolean = (previousMastery == 0)
     ): MasteryUpdateResult {
         if (totalQuestions <= 0) {
             val status = getStatus(previousMastery, if (previousMastery > 0) 1 else 0)
@@ -80,7 +81,7 @@ object MasteryCalculator {
         val targetScore = min(100f, (adjustedRatio * 100f) + streakBonus)
 
         // Blend with previous mastery: if first attempt, take targetScore; otherwise blend 60% new, 40% prev
-        val blended = if (previousMastery == 0) {
+        val blended = if (isFirstAttempt) {
             targetScore
         } else {
             (0.6f * targetScore) + (0.4f * previousMastery.toFloat())

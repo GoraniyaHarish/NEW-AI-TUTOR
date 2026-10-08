@@ -28,7 +28,8 @@ object QuizEvaluator {
         userAnswers: Map<Long, Int>, // questionId to selectedOptionIndex
         hintsUsedMap: Map<Long, Boolean>, // questionId to hintUsed
         previousMastery: Int,
-        currentStreak: Int = 0
+        currentStreak: Int = 0,
+        isFirstAttempt: Boolean = (previousMastery == 0)
     ): QuizEvaluationResult {
         var correctCount = 0
         var totalHintsUsed = 0
@@ -62,7 +63,8 @@ object QuizEvaluator {
             correctAnswers = correctCount,
             difficulty = dominantDifficulty,
             hintsUsed = totalHintsUsed,
-            currentStreak = currentStreak
+            currentStreak = currentStreak,
+            isFirstAttempt = isFirstAttempt
         )
 
         return QuizEvaluationResult(

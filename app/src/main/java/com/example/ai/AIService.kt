@@ -48,6 +48,7 @@ interface AIService {
     suspend fun generateQuestionsForSkill(
         skill: SkillEntity,
         count: Int,
-        difficulty: String
+        difficulty: String,
+        relevantChunks: List<DocumentChunkEntity>
     ): List<QuestionEntity>
 }

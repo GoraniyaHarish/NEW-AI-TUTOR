@@ -1,0 +1,1309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LearnMate — Team The Visionaries (CT3Y) — Code Carnival 3.0</title>
+  <style>
+    :root {
+      --bg-dark: #0A0F1D;
+      --card-bg: #121A2D;
+      --card-border: #1E293B;
+      --primary: #3B82F6;
+      --primary-gradient: linear-gradient(135deg, #3B82F6 0%, #2563EB 50%, #1D4ED8 100%);
+      --accent-cyan: #06B6D4;
+      --accent-emerald: #10B981;
+      --accent-amber: #F59E0B;
+      --accent-rose: #F43F5E;
+      --text-main: #F8FAFC;
+      --text-muted: #94A3B8;
+      --text-sub: #CBD5E1;
+      --slide-width: 1280px;
+      --slide-height: 720px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background: #030712;
+      color: var(--text-main);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Top Control Bar */
+    .top-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 54px;
+      background: rgba(10, 15, 29, 0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      z-index: 1000;
+    }
+
+    .brand-title {
+      font-size: 15px;
+      font-weight: 700;
+      background: linear-gradient(90deg, #60A5FA, #38BDF8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn {
+      background: #1E293B;
+      color: #F8FAFC;
+      border: 1px solid #334155;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .btn:hover {
+      background: #334155;
+      border-color: #475569;
+    }
+
+    .btn-primary {
+      background: #2563EB;
+      border-color: #3B82F6;
+    }
+
+    .btn-primary:hover {
+      background: #1D4ED8;
+    }
+
+    .slide-counter {
+      font-size: 13px;
+      color: var(--text-muted);
+      font-weight: 600;
+      min-width: 80px;
+      text-align: center;
+    }
+
+    /* Deck Container */
+    .deck-container {
+      margin-top: 64px;
+      margin-bottom: 24px;
+      position: relative;
+      width: var(--slide-width);
+      height: var(--slide-height);
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.7);
+      border-radius: 16px;
+      overflow: hidden;
+      background: var(--bg-dark);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    /* Individual Slide */
+    .slide {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      transform: scale(0.98);
+      padding: 48px 56px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      background: radial-gradient(circle at 85% 15%, rgba(37, 99, 235, 0.1) 0%, transparent 60%),
+                  radial-gradient(circle at 10% 85%, rgba(6, 182, 212, 0.06) 0%, transparent 50%),
+                  var(--bg-dark);
+    }
+
+    .slide.active {
+      opacity: 1;
+      visibility: visible;
+      transform: scale(1);
+    }
+
+    .slide-header {
+      margin-bottom: 20px;
+    }
+
+    .slide-tag {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: var(--accent-cyan);
+      background: rgba(6, 182, 212, 0.12);
+      padding: 3px 10px;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      border: 1px solid rgba(6, 182, 212, 0.25);
+    }
+
+    .slide-tag.verified {
+      color: var(--accent-emerald);
+      background: rgba(16, 185, 129, 0.12);
+      border-color: rgba(16, 185, 129, 0.25);
+    }
+
+    .slide-tag.vision {
+      color: var(--accent-amber);
+      background: rgba(245, 158, 11, 0.12);
+      border-color: rgba(245, 158, 11, 0.25);
+    }
+
+    .slide-title {
+      font-size: 34px;
+      font-weight: 800;
+      line-height: 1.2;
+      color: #FFFFFF;
+      letter-spacing: -0.5px;
+    }
+
+    .slide-subtitle {
+      font-size: 16px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      font-weight: 400;
+    }
+
+    .slide-content {
+      flex: 1;
+      display: flex;
+      gap: 36px;
+      align-items: center;
+    }
+
+    .text-column {
+      flex: 1.15;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .visual-column {
+      flex: 0.85;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100%;
+    }
+
+    /* Cards */
+    .feature-card {
+      background: rgba(18, 26, 45, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 12px;
+      padding: 14px 18px;
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      backdrop-filter: blur(8px);
+    }
+
+    .feature-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: rgba(59, 130, 246, 0.15);
+      color: #60A5FA;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .feature-info h4 {
+      font-size: 15px;
+      font-weight: 700;
+      color: #FFFFFF;
+      margin-bottom: 3px;
+    }
+
+    .feature-info p {
+      font-size: 12.5px;
+      color: var(--text-sub);
+      line-height: 1.45;
+    }
+
+    .slide-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .footer-left {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .badge-pill {
+      background: #1E293B;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+      color: #94A3B8;
+    }
+
+    /* Phone Mockup Styling */
+    .phone-mockup {
+      width: 280px;
+      height: 480px;
+      background: #0F172A;
+      border: 7px solid #1E293B;
+      border-radius: 34px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .phone-notch {
+      position: absolute;
+      top: 5px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 75px;
+      height: 13px;
+      background: #1E293B;
+      border-radius: 10px;
+      z-index: 10;
+    }
+
+    .phone-screen {
+      flex: 1;
+      padding: 22px 10px 10px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 10.5px;
+      color: #E2E8F0;
+      overflow: hidden;
+      background: #0A0F1D;
+    }
+
+    .mock-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 2px 2px;
+      border-bottom: 1px solid #1E293B;
+    }
+
+    .mock-title {
+      font-size: 12px;
+      font-weight: 800;
+      color: #FFFFFF;
+    }
+
+    .mock-pill-status {
+      font-size: 8.5px;
+      background: rgba(16, 185, 129, 0.15);
+      color: #34D399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 2px 5px;
+      border-radius: 10px;
+      font-weight: 700;
+    }
+
+    .mock-course-card {
+      background: linear-gradient(135deg, #1E293B 0%, #172554 100%);
+      border: 1px solid rgba(59, 130, 246, 0.25);
+      border-radius: 10px;
+      padding: 9px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .mock-ring {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: conic-gradient(#3B82F6 0% 74%, #334155 74% 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .mock-ring-inner {
+      width: 30px;
+      height: 30px;
+      background: #0F172A;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 9.5px;
+      color: #60A5FA;
+    }
+
+    .mock-task {
+      background: #121A2D;
+      border: 1px solid #1E293B;
+      border-radius: 7px;
+      padding: 7px 9px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .mock-chat-bubble-user {
+      align-self: flex-end;
+      background: #2563EB;
+      color: #FFFFFF;
+      padding: 6px 9px;
+      border-radius: 9px 9px 2px 9px;
+      max-width: 85%;
+      font-size: 9.5px;
+      line-height: 1.3;
+    }
+
+    .mock-chat-bubble-ai {
+      align-self: flex-start;
+      background: #1E293B;
+      color: #E2E8F0;
+      padding: 7px 9px;
+      border-radius: 9px 9px 9px 2px;
+      max-width: 92%;
+      font-size: 9.5px;
+      line-height: 1.35;
+      border: 1px solid #334155;
+    }
+
+    .mock-citation {
+      margin-top: 3px;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      background: rgba(6, 182, 212, 0.15);
+      color: #22D3EE;
+      padding: 2px 5px;
+      border-radius: 4px;
+      font-size: 8px;
+      font-weight: 700;
+    }
+
+    .mock-nav-bar {
+      margin-top: auto;
+      height: 34px;
+      background: #0F172A;
+      border-top: 1px solid #1E293B;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      padding: 0 8px;
+    }
+
+    .mock-nav-item {
+      font-size: 8.5px;
+      color: #64748B;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1px;
+    }
+
+    .mock-nav-item.active {
+      color: #38BDF8;
+      font-weight: 700;
+    }
+
+    /* Print Setup */
+    @media print {
+      body {
+        background: #FFFFFF !important;
+        color: #000000 !important;
+      }
+      .top-bar {
+        display: none !important;
+      }
+      .deck-container {
+        margin: 0 !important;
+        box-shadow: none !important;
+        border: none !important;
+        width: 100% !important;
+        height: auto !important;
+      }
+      .slide {
+        position: relative !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        transform: none !important;
+        page-break-after: always !important;
+        width: 100vw !important;
+        height: 100vh !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation & Controls -->
+  <header class="top-bar">
+    <div class="brand-title">
+      <span>🚀</span> LearnMate™ — The Visionaries (CT3Y) • Code Carnival 3.0
+    </div>
+    <div class="controls">
+      <button class="btn" onclick="prevSlide()" title="Previous Slide (Left Arrow)">◀ Prev</button>
+      <span class="slide-counter" id="slideCounter">1 / 12</span>
+      <button class="btn" onclick="nextSlide()" title="Next Slide (Right Arrow or Space)">Next ▶</button>
+      <button class="btn btn-primary" onclick="window.print()" title="Print / Save as PDF or PPT">🖨️ Export PDF / Print</button>
+      <button class="btn" onclick="toggleFullScreen()" title="Full Screen (F key)">⛶ Fullscreen</button>
+    </div>
+  </header>
+
+  <!-- Deck Slides Container -->
+  <main class="deck-container" id="deckContainer">
+
+    <!-- SLIDE 1: Title & Team Details -->
+    <section class="slide active">
+      <div class="slide-header">
+        <span class="slide-tag">CODE CARNIVAL 3.0 • PS-06</span>
+        <h1 class="slide-title">LearnMate™</h1>
+        <p class="slide-subtitle">On-Device Personalized Learning Assistant</p>
+      </div>
+      <div class="slide-content">
+        <div class="text-column">
+          <div class="feature-card" style="border-left: 3px solid var(--primary);">
+            <div class="feature-icon">👥</div>
+            <div class="feature-info">
+              <h4>Team Name: The Visionaries</h4>
+              <p><b>Team ID:</b> CT3Y &nbsp;|&nbsp; <b>Track:</b> Code Carnival 3.0 &nbsp;|&nbsp; <b>Problem Statement:</b> PS-06</p>
+            </div>
+          </div>
+          <div class="feature-card" style="border-left: 3px solid var(--accent-cyan);">
+            <div class="feature-icon">⭐</div>
+            <div class="feature-info">
+              <h4>Team Leader</h4>
+              <p style="font-size: 14px; font-weight: 700; color: #FFFFFF;">Harish Goraniya</p>
+            </div>
+          </div>
+          <div class="feature-card" style="border-left: 3px solid var(--accent-emerald);">
+            <div class="feature-icon">🎓</div>
+            <div class="feature-info">
+              <h4>Team Members</h4>
+              <div style="display: flex; gap: 16px; margin-top: 4px; font-size: 13px; font-weight: 600; color: #E2E8F0;">
+                <span>• Krishna Parmar</span>
+                <span>• Prushti Seladiya</span>
+                <span>• Sakshi Talaviya</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="visual-column">
+          <div style="background: linear-gradient(135deg, #1E293B 0%, #172554 100%); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 16px; padding: 28px; width: 100%; text-align: center;">
+            <div style="font-size: 44px; margin-bottom: 12px;">📱</div>
+            <div style="font-weight: 800; font-size: 19px; color: #FFFFFF; margin-bottom: 6px;">PS-06 Challenge</div>
+            <p style="font-size: 13px; color: #93C5FD; line-height: 1.5; margin-bottom: 14px;">
+              Building an on-device, privacy-preserving personal learning companion that converts students' own unstructured materials into adaptive knowledge graphs and quizzes.
+            </p>
+            <div style="background: rgba(15, 23, 42, 0.6); padding: 8px 12px; border-radius: 8px; font-size: 11px; color: #60A5FA; font-weight: 700;">
+              Native Android • Kotlin • Jetpack Compose • Room DB
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <div class="footer-left"><span>Team The Visionaries (CT3Y)</span></div>
+        <div>Slide 1 / 12</div>
+      </div>
+    </section>
+
+    <!-- SLIDE 2: Problem Statement (PS-06) -->
+    <section class="slide">
+      <div class="slide-header">
+        <span class="slide-tag">THE PROBLEM</span>
+        <h2 class="slide-title">Why Generic Study Tools Fall Short</h2>
+        <p class="slide-subtitle">The real pain points students face with existing educational tools.</p>
+      </div>
+      <div class="slide-content">
+        <div class="text-column">
+          <div class="feature-card" style="border-left: 3px solid var(--accent-rose);">
+            <div class="feature-icon" style="background: rgba(244, 63, 94, 0.15); color: #FB7185;">📄</div>
+            <div class="feature-info">
+              <h4>1. Information Overload & Disorganization</h4>
+              <p>Students juggle hundreds of lecture PDF slides, problem sets, and syllabi without an automated understanding of prerequisite dependencies.</p>
+            </div>
+          </div>
+          <div class="feature-card" style="border-left: 3px solid var(--accent-amber);">
+            <div class="feature-icon" style="background: rgba(245, 158, 11, 0.15); color: #FBBF24;">⚠️</div>
+            <div class="feature-info">
+              <h4>2. Generic AI Hallucinations</h4>
+              <p>Standard chatbots don't know the student's exact course syllabus. They invent formulas, introduce foreign notations, or explain concepts out of exam scope.</p>
+            </div>
+          </div>
+          <div class="feature-card" style="border-left: 3px solid var(--accent-cyan);">
+            <div class="feature-icon" style="background: rgba(6, 182, 212, 0.15); color: #22D3EE;">📶</div>
+            <div class="feature-info">
+              <h4>3. Cloud Dependency & Network Fragility</h4>
+              <p>Students commuting, studying in offline libraries, or in low-connectivity areas completely lose access to cloud-only learning assistants.</p>
+            </div>
+          </div>
+        </div>
+        <div class="visual-column">
+          <div style="background: #121A2D; border: 1px solid #1E293B; border-radius: 16px; padding: 24px; text-align: center; width: 100%;">
+            <div style="font-size: 38px; margin-bottom: 10px;">❌</div>
+            <div style="font-weight: 800; font-size: 16px; color: #FB7185; margin-bottom: 6px;">The Passive Reading Trap</div>
+            <p style="font-size: 13px; color: #CBD5E1; line-height: 1.5; margin-bottom: 14px;">
+              Re-reading notes gives an illusion of competence. Without targeted diagnostic quizzes, spaced repetition, and prerequisite tracking, students fail to retain core concepts.
+            </p>
+            <div style="background: #0A0F1D; border-radius: 8px; padding: 10px; font-size: 11px; color: #94A3B8; text-align: left;">
+              • No offline access<br>
+              • No grounded citations<br>
+              • Zero prerequisite mapping
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <div class="footer-left"><span>PS-06 Analysis</span></div>
+        <div>Slide 2 / 12</div>
+      </div>
+    </section>
+
+    <!-- SLIDE 3: The Solution Overview & Core Pipeline -->
+    <section class="slide">
+      <div class="slide-header">
+        <span class="slide-tag verified">OUR WORKING SOLUTION</span>
+        <h2 class="slide-title">Meet LearnMate: Grounded Personal Tutor</h2>
+        <p class="slide-subtitle">A native Android app turning raw student materials into an adaptive mastery graph.</p>
+      </div>
+      <div class="slide-content">
+        <div class="text-column">
+          <div class="feature-card" style="border-left: 3px solid var(--accent-emerald);">
+            <div class="feature-icon" style="background: rgba(16, 185, 129, 0.15); color: #34D399;">📥</div>
+            <div class="feature-info">
+              <h4>1. Material Ingestion & Chunking (Working)</h4>
+              <p>Extracts PDF text and notes into 400–600 token chunks with 50-token overlap stored safely in local Room Database.</p>
+            </div>
+          </div>
+          <div class="feature-card" style="border-left: 3px solid var(--primary);">
+            <div class="feature-icon">🕸️</div>
+            <div class="feature-info">
+              <h4>2. Automated Skill Map & DAG (Working)</h4>
+              <p>Extracts course skills, maps prerequisite dependencies, and visualizes mastery states (Not Assessed, Needs Attention, Learning, Strong).</p>
+            </div>
+          </div>
+          <div class="feature-card" style="border-left: 3px solid var(--accent-cyan);">
+            <div class="feature-icon" style="background: rgba(6, 182, 212, 0.15); color: #22D3EE;">🔍</div>
+            <div class="feature-info">
+              <h4>3. Grounded Retrieval & AI Tutor (Working)</h4>
+              <p>Answers student questions by strictly citing document name and page number. Zero hallucinated references.</p>
+            </div>
+          </div>
+        </div>
+        <div class="visual-column">
+          <!-- Flow diagram -->
+          <div style="background: #121A2D; border: 1px solid #1E293B; border-radius: 16px; padding: 20px; width: 100%; display: flex; flex-direction: column; gap: 10px;">
+            <div style="font-weight: 700; font-size: 13px; color: #60A5FA; text-transform: uppercase;">The 4-Step Pipeline</div>
+            <div style="background: #0A0F1D; padding: 9px 12px; border-radius: 8px; display: flex; align-items: center; gap: 10px; font-size: 12px;">
+              <span>📄</span> <b>1. Student PDF / Notes Upload</b>
+            </div>
+            <div style="background: #0A0F1D; padding: 9px 12px; border-radius: 8px; display: flex; align-items: center; gap: 10px; font-size: 12px;">
+              <span>⚙️</span> <b>2. Local Tokenizer & BM25 Index</b>
+            </div>
+            <div style="background: #0A0F1D; padding: 9px 12px; border-radius: 8px; display: flex; align-items: center; gap: 10px; font-size: 12px;">
+              <span>📊</span> <b>3. Adaptive Diagnostic Quiz</b>
+            </div>
+            <div style="background: #0A0F1D; padding: 9px 12px; border-radius: 8px; display: flex; align-items: center; gap: 10px; font-size: 12px;">
+              <span>🤖</span> <b>4. Grounded Tutor + Audio TTS</b>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <div class="footer-left"><span class="badge-pill">100% Offline-First Core</span></div>
+        <div>Slide 3 / 12</div>
+      </div>
+    </section>
+
+    <!-- SLIDE 4: Prototype 1 - Ingestion & Storage -->
+    <section class="slide">
+      <div class="slide-header">
+        <span class="slide-tag verified">PROTOTYPE DEMO • LIVE & FUNCTIONAL</span>
+        <h2 class="slide-title">1. Course Ingestion & Local Room Storage</h2>
+        <p class="slide-subtitle">Genuine on-device parsing of student notes with zero broad storage permissions.</p>
+      </div>
+      <div class="slide-content">
+        <div class="text-column">
+          <div class="feature-card">
+            <div class="feature-icon">📥</div>
+            <div class="feature-info">
+              <h4>Real PDF Stream Decompression</h4>
+              <p>Extracts raw text streams, deflates compressed fonts, strips noise, and preserves authentic page boundaries.</p>
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">✂️</div>
+            <div class="feature-info">
+              <h4>Sliding-Window Token Chunking</h4>
+              <p>Partitions documents into 400–600 token chunks with 50-token overlap, ensuring formula context is never sliced in half.</p>
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🔒</div>
+            <div class="feature-info">
+              <h4>Private Sandbox (context.filesDir)</h4>
+              <p>Uploaded materials reside strictly in the app's isolated internal storage. No external permissions requested.</p>
+            </div>
+          </div>
+        </div>
+        <div class="visual-column">
+          <div style="background: #0A0F1D; border: 1px solid #1E293B; border-radius: 12px; padding: 18px; font-family: monospace; font-size: 11px; width: 100%; color: #94A3B8;">
+            <div style="color: #38BDF8; font-weight: bold; margin-bottom: 6px;">// Room DB Schema (Local SQLite)</div>
+            @Entity(tableName = "courses")<br>
+            @Entity(tableName = "documents")<br>
+            @Entity(tableName = "document_chunks")<br>
+            @Entity(tableName = "skills")<br>
+            @Entity(tableName = "skill_relations")<br>
+            @Entity(tableName = "learner_skills")<br>
+            @Entity(tableName = "chat_messages")<br>
+            <br>
+            <span style="color: #10B981;">✓ 10 DAOs handling offline persistence</span>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <div class="footer-left"><span>Status: Fully Implemented & Unit Tested</span></div>
+        <div>Slide 4 / 12</div>
+      </div>
+    </section>
+
+    <!-- SLIDE 5: Prototype 2 - Skill Map & Prerequisite Graph -->
+    <section class="slide">
+      <div class="slide-header">
+        <span class="slide-tag verified">PROTOTYPE DEMO • LIVE & FUNCTIONAL</span>
+        <h2 class="slide-title">2. Skill Mastery Graph & Prerequisite Mapping</h2>
+        <p class="slide-subtitle">Visualizing knowledge state as a Directed Acyclic Graph (DAG) with prerequisite blocks.</p>
+      </div>
+      <div class="slide-content">
+        <div class="text-column">
+          <div class="feature-card">
+            <div class="feature-icon">🗺️</div>
+            <div class="feature-info">
+              <h4>Automated Prerequisite Detection</h4>
+              <p>If a student attempts advanced concepts (e.g. <i>Work & Energy</i>) while <i>Newton's Laws</i> is under 50%, LearnMate flags the prerequisite gap.</p>
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🏷️</div>
+            <div class="feature-info">
+              <h4>Color-Coded Mastery States</h4>
+              <p>🟢 Strong (≥75%), 🟡 Learning (50–74%), 🔴 Needs Attention (&lt;50%), and ⚪ Not Assessed.</p>
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🎯</div>
+            <div class="feature-info">
+              <h4>Targeted Skill Practice</h4>
+              <p>Tapping any skill opens targeted study options: ask the tutor, generate a practice quiz, or listen to audio summaries.</p>
+            </div>
+          </div>
+        </div>
+        <div class="visual-column">
+          <!-- Phone Mockup: Skill Map -->
+          <div class="phone-mockup">
+            <div class="phone-notch"></div>
+            <div class="phone-screen">
+              <div class="mock-header">
+                <div>
+                  <div style="font-size:7.5px; color:#94A3B8;">Physics Mechanics</div>
+                  <div class="mock-title">Your Learning Map</div>
+                </div>
+                <div style="font-size:8px; background:#1E293B; padding:2px 5px; border-radius:5px; color:#93C5FD;">12 Skills</div>
+              </div>
+
+              <div style="display:flex; flex-direction:column; gap:6px; margin-top:4px;">
+                <div style="background:#121A2D; border-left:3px solid #10B981; border-radius:6px; padding:6px 8px;">
+                  <div style="display:flex; justify-content:space-between; font-weight:700;">
+                    <span>1. 1D Kinematics</span>
+                    <span style="color:#34D399;">85% Strong</span>
+                  </div>
+                  <div style="font-size:7.5px; color:#94A3B8;">Displacement, velocity, acceleration</div>
+                </div>
+
+                <div style="text-align:center; color:#64748B; font-size:8px;">↓ Prerequisite dependency</div>
+
+                <div style="background:#121A2D; border-left:3px solid #F43F5E; border-radius:6px; padding:6px 8px;">
+                  <div style="display:flex; justify-content:space-between; font-weight:700;">
+                    <span>2. Newton's 2nd Law</span>
+                    <span style="color:#FB7185;">42% Needs Attention</span>
+                  </div>
+                  <div style="font-size:7.5px; color:#94A3B8;">Free-body diagrams & force summation</div>
+                </div>
+
+                <div style="text-align:center; color:#64748B; font-size:8px;">↓ Prerequisite dependency</div>
+
+                <div style="background:#121A2D; border-left:3px solid #F59E0B; border-radius:6px; padding:6px 8px;">
+                  <div style="display:flex; justify-content:space-between; font-weight:700;">
+                    <span>3. Work & Energy</span>
+                    <span style="color:#FBBF24;">60% Learning</span>
+                  </div>
+                  <div style="font-size:7.5px; color:#94A3B8;">Conservation theorem & spring potential</div>
+                </div>
+              </div>
+
+              <div style="margin-top:auto; background:#2563EB; color:#FFF; text-align:center; padding:7px; border-radius:7px; font-weight:700; font-size:9.5px;">
+                Start Diagnostic Assessment
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <div class="footer-left"><span>Screen: SkillMapScreen.kt</span></div>
+        <div>Slide 5 / 12</div>
+      </div>
+    </section>
+
+    <!-- SLIDE 6: Prototype 3 - Dual-Mode Architecture & Offline Search -->
+    <section class="slide">
+      <div class="slide-header">
+        <span class="slide-tag verified">PROTOTYPE DEMO • LIVE & FUNCTIONAL</span>
+        <h2 class="slide-title">3. Dual-Mode Routing & Local BM25 Engine</h2>
+        <p class="slide-subtitle">Full offline lexical search with online cloud generative capabilities.</p>
+      </div>
+      <div class="slide-content">
+        <div class="text-column">
+          <div class="feature-card">
+            <div class="feature-icon">⚡</div>
+            <div class="feature-info">
+              <h4>100% In-Memory BM25 Lexical Retrieval</h4>
+              <p>Tokenizes user queries, scores against cached document chunks, and retrieves relevant notes in milliseconds offline without mobile data.</p>
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">☁️</div>
+            <div class="feature-info">
+              <h4>Cloud Route (Gemini Flash API)</h4>
+              <p>When online, routes to Gemini Flash with strictly injected <code>x-goog-api-key</code> headers for deep conceptual reasoning.</p>
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🛡️</div>
+            <div class="feature-info">
+              <h4>Strict Citation Provenance Validator</h4>
+              <p>Cross-references citations in real-time. If an AI hallucinates a non-existent page number, it is filtered before display.</p>
+            </div>
+          </div>
+        </div>
+        <div class="visual-column">
+          <div style="background: #0A0F1D; border: 1px solid #1E293B; border-radius: 12px; padding: 18px; font-family: monospace; font-size: 11px; line-height: 1.5; color: #94A3B8; width: 100%;">
+            <div style="color: #38BDF8; font-weight: bold; margin-bottom: 6px;">// AIRouter Execution Flow</div>
+            [User Prompt]<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;│<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;▼<br>
+            [Network & Simulation Check]<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;├─ <span style="color:#10B981;">Online</span> ──► <span style="color:#60A5FA;">Gemini Flash (Cloud)</span><br>
+            &nbsp;&nbsp;&nbsp;&nbsp;└─ <span style="color:#F59E0B;">Offline</span> ─► <span style="color:#FCD34D;">Local BM25 Search</span><br>
+            &nbsp;&nbsp;&nbsp;&nbsp;│<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;▼<br>
+            [Provenance Validation (Page & Chunk)]<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;│<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;▼<br>
+            [UI Render + TTS Audio Synthesizer]
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <div class="footer-left"><span>Component: AIRouter.kt & LocalRetriever.kt</span></div>
+        <div>Slide 6 / 12</div>
+      </div>
+    </section>
+
+    <!-- SLIDE 7: Prototype 4 - Grounded AI Tutor & Audio TTS -->
+    <section class="slide">
+      <div class="slide-header">
+        <span class="slide-tag verified">PROTOTYPE DEMO • LIVE & FUNCTIONAL</span>
+        <h2 class="slide-title">4. Grounded AI Tutor & Native Audio TTS</h2>
+        <p class="slide-subtitle">Live chat answering questions with genuine page citations and audio synthesis.</p>
+      </div>
+      <div class="slide-content">
+        <div class="text-column">
+          <div class="feature-card">
+            <div class="feature-icon">💬</div>
+            <div class="feature-info">
+              <h4>Context-Aware Course Tutor</h4>
+              <p>Supports natural conversational inquiry: <i>"Explain static vs kinetic friction"</i> or <i>"Give me a hint from my notes"</i>.</p>
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">📑</div>
+            <div class="feature-info">
+              <h4>Genuine Page-Number Citations</h4>
+              <p>Answers include verified citation chips: <code>Physics Notes.pdf • Page 14</code>, allowing students to verify directly in their notes.</p>
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🔊</div>
+            <div class="feature-info">
+              <h4>Integrated Android Native TTS</h4>
+              <p>Students on the move can tap the speaker icon to listen to lesson summaries spoken aloud via Android's local speech engine.</p>
+            </div>
+          </div>
+        </div>
+        <div class="visual-column">
+          <!-- Phone Mockup: AI Tutor -->
+          <div class="phone-mockup">
+            <div class="phone-notch"></div>
+            <div class="phone-screen">
+              <div class="mock-header">
+                <div>
+                  <div style="font-size:7.5px; color:#94A3B8;">Physics Mechanics</div>
+                  <div class="mock-title">LearnMate AI Tutor</div>
+                </div>
+                <div class="mock-pill-status">● Online</div>
+              </div>
+
+              <div style="display:flex; gap:4px; overflow:hidden;">
+                <span style="font-size:7.5px; background:#1E293B; padding:2px 5px; border-radius:8px; color:#94A3B8;">Explain Step-by-Step</span>
+                <span style="font-size:7.5px; background:#1E293B; padding:2px 5px; border-radius:8px; color:#94A3B8;">Give me a hint</span>
+              </div>
+
+              <div class="mock-chat-bubble-user">
+                What is the difference between static and kinetic friction in our notes?
+              </div>
+
+              <div class="mock-chat-bubble-ai">
+                Static friction prevents motion up to a maximum threshold:
+                <div style="font-weight:700; color:#38BDF8; margin:2px 0;">fs ≤ μs · N</div>
+                Kinetic friction opposes sliding once movement begins and is typically lower (μk < μs).
+                <div class="mock-citation">
+                  <span>📄</span> Physics Notes.pdf • Page 14
+                </div>
+              </div>
+
+              <div style="margin-top:auto; display:flex; gap:5px; background:#121A2D; padding:5px; border-radius:7px; border:1px solid #1E293B; align-items:center;">
+                <span style="color:#64748B; font-size:9px; flex:1;">Ask your notes a question...</span>
+                <span style="background:#2563EB; color:#FFF; font-size:9px; padding:2px 5px; border-radius:5px;">➤</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <div class="footer-left"><span>Screen: TutorScreen.kt</span></div>
+        <div>Slide 7 / 12</div>
+      </div>
+    </section>
+
+    <!-- SLIDE 8: Prototype 5 - Mathematical Mastery Engine -->
+    <section class="slide">
+      <div class="slide-header">
+        <span class="slide-tag verified">PROTOTYPE DEMO • LIVE & FUNCTIONAL</span>
+        <h2 class="slide-title">5. Objective Mathematical Mastery Engine</h2>
+        <p class="slide-subtitle">Multi-factor heuristic and Exponential Moving Average (EMA) progress scoring.</p>
+      </div>
+      <div class="slide-content">
+        <div class="text-column">
+          <div class="feature-card">
+            <div class="feature-icon">🧮</div>
+            <div class="feature-info">
+              <h4>The Blended Mastery Equation</h4>
+              <p style="font-family: monospace; font-size: 13px; color: #38BDF8;">
+                NewMastery = (0.6 × QuizScore) + (0.4 × PrevMastery)
+              </p>
+              <p style="font-size: 11.5px; margin-top: 3px;">First attempts take 100% of quiz score directly to establish clean baselines.</p>
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">⚖️</div>
+            <div class="feature-info">
+              <h4>Difficulty Modifiers & Hint Penalties</h4>
+              <p>Questions scale by difficulty (Easy ×0.85, Medium ×1.0, Hard ×1.2). Using hints applies a -4% penalty to encourage independent recall.</p>
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🔥</div>
+            <div class="feature-info">
+              <h4>Consecutive Streak Bonuses</h4>
+              <p>Consecutive correct answers add up to +10% motivation bonus without skewing genuine mastery.</p>
+            </div>
+          </div>
+        </div>
+        <div class="visual-column">
+          <div style="background: #121A2D; border: 1px solid #1E293B; border-radius: 14px; padding: 20px; width: 100%;">
+            <div style="font-weight: 700; font-size: 13px; color: #F8FAFC; margin-bottom: 10px;">Mastery Evaluation Multi-Factors</div>
+            <div style="display:flex; flex-direction:column; gap:8px; font-size: 11px;">
+              <div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
+                  <span>Base Correctness</span>
+                  <span style="color:#60A5FA; font-weight:700;">80% Accuracy</span>
+                </div>
+                <div style="height:5px; background:#1E293B; border-radius:3px; overflow:hidden;">
+                  <div style="width:80%; height:100%; background:#3B82F6;"></div>
+                </div>
+              </div>
+
+              <div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
+                  <span>Difficulty Modifier (Hard)</span>
+                  <span style="color:#34D399; font-weight:700;">+20% Multiplier</span>
+                </div>
+                <div style="height:5px; background:#1E293B; border-radius:3px; overflow:hidden;">
+                  <div style="width:65%; height:100%; background:#10B981;"></div>
+                </div>
+              </div>
+
+              <div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
+                  <span>Hint Penalty (1 hint used)</span>
+                  <span style="color:#FB7185; font-weight:700;">-4% Deduction</span>
+                </div>
+                <div style="height:5px; background:#1E293B; border-radius:3px; overflow:hidden;">
+                  <div style="width:20%; height:100%; background:#F43F5E;"></div>
+                </div>
+              </div>
+
+              <div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
+                  <span>Streak Bonus (3 consecutive)</span>
+                  <span style="color:#FBBF24; font-weight:700;">+6% Bonus</span>
+                </div>
+                <div style="height:5px; background:#1E293B; border-radius:3px; overflow:hidden;">
+                  <div style="width:40%; height:100%; background:#F59E0B;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <div class="footer-left"><span>Component: MasteryCalculator.kt</span></div>
+        <div>Slide 8 / 12</div>
+      </div>
+    </section>
+
+    <!-- SLIDE 9: Prototype 6 - Spaced Repetition & Study Plan -->
+    <section class="slide">
+      <div class="slide-header">
+        <span class="slide-tag verified">PROTOTYPE DEMO • LIVE & FUNCTIONAL</span>
+        <h2 class="slide-title">6. Spaced Repetition & Daily Study Plan</h2>
+        <p class="slide-subtitle">Scientific retention scheduling based on the Ebbinghaus forgetting curve.</p>
+      </div>
+      <div class="slide-content">
+        <div class="text-column">
+          <div class="feature-card">
+            <div class="feature-icon">📅</div>
+            <div class="feature-info">
+              <h4>Multi-Day Interval Scheduling</h4>
+              <p>Reviews are scheduled at 1, 3, 7, 14, and 30-day milestones right before memory decay occurs.</p>
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🎯</div>
+            <div class="feature-info">
+              <h4>Prerequisite-Prioritized Daily Tasks</h4>
+              <p>Daily plan prioritizes blocked skills: <i>"Newton's 2nd Law (High Priority)"</i> appears first before advanced energy concepts.</p>
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">⏱️</div>
+            <div class="feature-info">
+              <h4>Time-Budgeted Study Sessions</h4>
+              <p>Each task includes estimated completion time (e.g. 5–10 mins) for bite-sized, consistent learning.</p>
+            </div>
+          </div>
+        </div>
+        <div class="visual-column">
+          <!-- Phone Mockup: Home Dashboard -->
+          <div class="phone-mockup">
+            <div class="phone-notch"></div>
+            <div class="phone-screen">
+              <div class="mock-header">
+                <div>
+                  <div style="font-size:7.5px; color:#94A3B8;">Good morning, Alex</div>
+                  <div class="mock-title">LearnMate</div>
+                </div>
+                <div class="mock-pill-status">● Online</div>
+              </div>
+
+              <div class="mock-course-card">
+                <div>
+                  <div style="font-weight:700; font-size:10px;">Physics Mechanics</div>
+                  <div style="color:#93C5FD; font-size:8px;">4 Docs • 12 Skills</div>
+                </div>
+                <div class="mock-ring">
+                  <div class="mock-ring-inner">74%</div>
+                </div>
+              </div>
+
+              <div style="font-weight:700; font-size:9.5px; margin-top:2px;">Daily Study Plan</div>
+              
+              <div class="mock-task">
+                <div>
+                  <div style="font-weight:600; font-size:9px;">Newton's 2nd Law Quiz</div>
+                  <div style="font-size:7.5px; color:#94A3B8;">5 questions • Gap detection</div>
+                </div>
+                <div style="font-size:7px; font-weight:700; background:rgba(244,63,94,0.2); color:#FB7185; padding:2px 4px; border-radius:3px;">HIGH PRIORITY</div>
+              </div>
+
+              <div class="mock-task">
+                <div>
+                  <div style="font-weight:600; font-size:9px;">Friction Coefficients</div>
+                  <div style="font-size:7.5px; color:#94A3B8;">Spaced review (Day 7)</div>
+                </div>
+                <div style="font-size:7px; font-weight:700; background:rgba(245,158,11,0.2); color:#FBBF24; padding:2px 4px; border-radius:3px;">REVIEW</div>
+              </div>
+
+              <div class="mock-nav-bar">
+                <div class="mock-nav-item active">🏠<span>Home</span></div>
+                <div class="mock-nav-item">🗺️<span>Map</span></div>
+                <div class="mock-nav-item">🤖<span>Tutor</span></div>
+                <div class="mock-nav-item">👤<span>Profile</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <div class="footer-left"><span>Screen: HomeScreen.kt</span></div>
+        <div>Slide 9 / 12</div>
+      </div>
+    </section>
+
+    <!-- SLIDE 10: Technical Architecture & Testing Quality -->
+    <section class="slide">
+      <div class="slide-header">
+        <span class="slide-tag verified">ENGINEERING & VERIFICATION</span>
+        <h2 class="slide-title">Native Android Architecture & Test Suite</h2>
+        <p class="slide-subtitle">Clean Architecture, 57+ passing unit & Robolectric tests, zero hardcoded secrets.</p>
+      </div>
+      <div class="slide-content">
+        <div class="text-column">
+          <div class="feature-card">
+            <div class="feature-icon">🧩</div>
+            <div class="feature-info">
+              <h4>Modern Jetpack Compose UI</h4>
+              <p>Edge-to-edge screens with Material Design 3, dynamic theme switching (Light / Dark / System), and WCAG AA accessibility compliance.</p>
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🧪</div>
+            <div class="feature-info">
+              <h4>57+ Automated Tests Passing</h4>
+              <p>Comprehensive unit and Robolectric tests validating PDF parsing, BM25 tokenizer, mastery scoring, and Room database transactions.</p>
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🔒</div>
+            <div class="feature-info">
+              <h4>Google Play & Security Compliance</h4>
+              <p>Zero broad storage permissions requested. Zero hardcoded secrets; API keys injected securely via Gradle build configs.</p>
+            </div>
+          </div>
+        </div>
+        <div class="visual-column">
+          <div style="background: #0A0F1D; border: 1px solid #1E293B; border-radius: 12px; padding: 18px; font-family: monospace; font-size: 11px; width: 100%;">
+            <div style="color: #34D399; font-weight: 700; margin-bottom: 6px;">✓ GRADLE BUILD VERIFIED</div>
+            <div style="color: #94A3B8; line-height: 1.5;">
+              > Task :app:testDebugUnitTest<br>
+              &nbsp;&nbsp;✔ ExampleRobolectricTest<br>
+              &nbsp;&nbsp;✔ MainViewModelTest<br>
+              &nbsp;&nbsp;✔ RoomDatabaseTest<br>
+              &nbsp;&nbsp;✔ MasteryCalculatorTest (First Attempt + Blending)<br>
+              &nbsp;&nbsp;✔ LocalRetrieverTest (BM25 Tokenizer)<br>
+              &nbsp;&nbsp;✔ PdfTextExtractorTest<br>
+              <br>
+              <span style="color: #38BDF8;">33 actionable tasks: 100% PASSING</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <div class="footer-left"><span>Target: Android 7.0–16 (API 24–36)</span></div>
+        <div>Slide 10 / 12</div>
+      </div>
+    </section>
+
+    <!-- SLIDE 11: In-Progress Work & Future Vision -->
+    <section class="slide">
+      <div class="slide-header">
+        <span class="slide-tag vision">HONEST STATUS & VISION</span>
+        <h2 class="slide-title">What We Are Actively Building & Our Vision</h2>
+        <p class="slide-subtitle">Clear distinction between our verified working prototype and ongoing innovations.</p>
+      </div>
+      <div class="slide-content">
+        <div class="text-column">
+          <div class="feature-card" style="border-left: 3px solid var(--accent-emerald);">
+            <div class="feature-icon" style="background:rgba(16,185,129,0.15); color:#34D399;">✓</div>
+            <div class="feature-info">
+              <h4>Currently Working Today (Verified)</h4>
+              <p>Room DB storage, in-memory BM25 retrieval, grounded Gemini tutoring, mathematical mastery engine, and 57+ passing unit tests.</p>
+            </div>
+          </div>
+          <div class="feature-card" style="border-left: 3px solid var(--accent-amber);">
+            <div class="feature-icon" style="background:rgba(245,158,11,0.15); color:#FBBF24;">🔨</div>
+            <div class="feature-info">
+              <h4>In Active Development (Next Milestone)</h4>
+              <p>Packaging bundled quantized on-device neural weights (e.g. Gemma 2B via MediaPipe) so that freeform synthesis executes without any cloud fallback.</p>
+            </div>
+          </div>
+          <div class="feature-card" style="border-left: 3px solid var(--primary);">
+            <div class="feature-icon">🔮</div>
+            <div class="feature-info">
+              <h4>Long-Term Vision for PS-06</h4>
+              <p>Multimodal diagram & handwriting recognition (OCR), vector embeddings, and encrypted peer-to-peer (P2P) course sharing among student study groups.</p>
+            </div>
+          </div>
+        </div>
+        <div class="visual-column">
+          <div style="background: #121A2D; border: 1px solid #1E293B; border-radius: 16px; padding: 22px; text-align: center; width: 100%;">
+            <div style="font-size: 36px; margin-bottom: 10px;">🎯</div>
+            <div style="font-weight: 800; font-size: 15px; color: #60A5FA; margin-bottom: 6px;">Our Core Commitment</div>
+            <p style="font-size: 12.5px; color: #CBD5E1; line-height: 1.5;">
+              We never exaggerate or fake AI capabilities. By coupling strict citation provenance with offline deterministic retrieval, LearnMate provides dependable, trustworthy academic assistance.
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <div class="footer-left"><span>Roadmap: Phase 1 (Done) ➔ Phase 2 (In-Progress) ➔ Phase 3 (Vision)</span></div>
+        <div>Slide 11 / 12</div>
+      </div>
+    </section>
+
+    <!-- SLIDE 12: Thank You & Q&A -->
+    <section class="slide">
+      <div class="slide-header">
+        <span class="slide-tag">CODE CARNIVAL 3.0</span>
+        <h2 class="slide-title">Thank You!</h2>
+        <p class="slide-subtitle">Questions, Feedback & Discussion</p>
+      </div>
+      <div class="slide-content">
+        <div class="text-column">
+          <div class="feature-card" style="border-left: 3px solid var(--primary);">
+            <div class="feature-icon">🏆</div>
+            <div class="feature-info">
+              <h4>Team The Visionaries (CT3Y)</h4>
+              <p><b>Leader:</b> Harish Goraniya<br>
+              <b>Members:</b> Krishna Parmar, Prushti Seladiya, Sakshi Talaviya</p>
+            </div>
+          </div>
+          <div class="feature-card" style="border-left: 3px solid var(--accent-cyan);">
+            <div class="feature-icon">📱</div>
+            <div class="feature-info">
+              <h4>Project: LearnMate™</h4>
+              <p>On-Device Personalized Learning Assistant (PS-06)<br>
+              Kotlin • Jetpack Compose • Room Database • Dual-Mode AI</p>
+            </div>
+          </div>
+          <div class="feature-card" style="border-left: 3px solid var(--accent-emerald);">
+            <div class="feature-icon">🤝</div>
+            <div class="feature-info">
+              <h4>Open for Discussion</h4>
+              <p>We are ready to demonstrate the live prototype and answer your questions!</p>
+            </div>
+          </div>
+        </div>
+        <div class="visual-column">
+          <div style="background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%); border: 1px solid #334155; border-radius: 16px; padding: 26px; text-align: center; width: 100%;">
+            <div style="font-size: 44px; margin-bottom: 10px;">🎓</div>
+            <div style="font-weight: 800; font-size: 20px; color: #FFFFFF; margin-bottom: 6px;">LearnMate™</div>
+            <p style="font-size: 13px; color: #94A3B8; line-height: 1.5; margin-bottom: 18px;">
+              Empowering students with an offline-first, honest, and grounded personal tutor.
+            </p>
+            <div style="display:flex; justify-content:center; gap:8px;">
+              <span class="badge-pill" style="color:#60A5FA;">Thank You Judges!</span>
+              <span class="badge-pill" style="color:#34D399;">Ready for Q&A</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <div class="footer-left"><span>Team The Visionaries • Code Carnival 3.0</span></div>
+        <div>Slide 12 / 12</div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('.slide');
+    const totalSlides = slides.length;
+    const counter = document.getElementById('slideCounter');
+
+    function updateSlide(index) {
+      slides.forEach((s, i) => {
+        s.classList.toggle('active', i === index);
+      });
+      counter.textContent = `${index + 1} / ${totalSlides}`;
+    }
+
+    function nextSlide() {
+      if (currentSlide < totalSlides - 1) {
+        currentSlide++;
+        updateSlide(currentSlide);
+      }
+    }
+
+    function prevSlide() {
+      if (currentSlide > 0) {
+        currentSlide--;
+        updateSlide(currentSlide);
+      }
+    }
+
+    function toggleFullScreen() {
+      const container = document.getElementById('deckContainer');
+      if (!document.fullscreenElement) {
+        container.requestFullscreen().catch(err => {
+          alert(`Error attempting fullscreen: ${err.message}`);
+        });
+      } else {
+        document.exitFullscreen();
+      }
+    }
+
+    // Keyboard Shortcuts
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+        nextSlide();
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        prevSlide();
+      } else if (e.key === 'f' || e.key === 'F') {
+        toggleFullScreen();
+      }
+    });
+  </script>
+</body>
+</html>

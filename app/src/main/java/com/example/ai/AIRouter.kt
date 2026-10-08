@@ -64,14 +64,15 @@ class AIRouter(
     override suspend fun generateQuestionsForSkill(
         skill: SkillEntity,
         count: Int,
-        difficulty: String
+        difficulty: String,
+        relevantChunks: List<DocumentChunkEntity>
     ): List<QuestionEntity> {
         val isOnline = networkMonitor.isOnline.value
         val hasCloudKey = cloudAI.isConfigured()
 
         if (isOnline && hasCloudKey) {
             try {
-                val cloudQuestions = cloudAI.generateQuestionsForSkill(skill, count, difficulty)
+                val cloudQuestions = cloudAI.generateQuestionsForSkill(skill, count, difficulty, relevantChunks)
                 if (cloudQuestions.isNotEmpty()) {
                     return cloudQuestions
                 }
@@ -80,6 +81,6 @@ class AIRouter(
             }
         }
 
-        return localAI.generateQuestionsForSkill(skill, count, difficulty)
+        return localAI.generateQuestionsForSkill(skill, count, difficulty, relevantChunks)
     }
 }

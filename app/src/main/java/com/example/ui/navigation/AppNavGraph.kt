@@ -8,6 +8,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -100,7 +101,9 @@ fun AppNavGraph(
             composable(Screen.Splash.route) {
                 SplashScreen(
                     onNavigateNext = {
-                        navController.navigate(Screen.Home.route) {
+                        val completed = viewModel.isOnboardingCompleted.value
+                        val destination = if (completed) Screen.Home.route else Screen.Onboarding.route
+                        navController.navigate(destination) {
                             popUpTo(Screen.Splash.route) { inclusive = true }
                         }
                     }
@@ -110,11 +113,18 @@ fun AppNavGraph(
             composable(Screen.Onboarding.route) {
                 OnboardingScreen(
                     onFinishOnboarding = {
-                        navController.navigate(Screen.CreateCourse.route)
+                        viewModel.setOnboardingCompleted(true)
+                        navController.navigate(Screen.CreateCourse.route) {
+                            popUpTo(Screen.Onboarding.route) { inclusive = true }
+                        }
                     },
                     onSkipToDemo = {
-                        navController.navigate(Screen.Home.route) {
-                            popUpTo(Screen.Onboarding.route) { inclusive = true }
+                        viewModel.setOnboardingCompleted(true)
+                        viewModel.resetToDemoCourse { newId ->
+                            viewModel.selectCourse(newId)
+                            navController.navigate(Screen.Home.route) {
+                                popUpTo(Screen.Onboarding.route) { inclusive = true }
+                            }
                         }
                     }
                 )
@@ -203,6 +213,9 @@ fun AppNavGraph(
                 arguments = listOf(navArgument("courseId") { type = NavType.LongType })
             ) { backStack ->
                 val courseId = backStack.arguments?.getLong("courseId") ?: 1L
+                LaunchedEffect(courseId) {
+                    viewModel.selectCourse(courseId)
+                }
                 ProcessingScreen(
                     courseId = courseId,
                     viewModel = viewModel,
@@ -219,6 +232,9 @@ fun AppNavGraph(
                 arguments = listOf(navArgument("courseId") { type = NavType.LongType })
             ) { backStack ->
                 val courseId = backStack.arguments?.getLong("courseId") ?: 1L
+                LaunchedEffect(courseId) {
+                    viewModel.selectCourse(courseId)
+                }
                 SkillMapScreen(
                     courseId = courseId,
                     viewModel = viewModel,
@@ -238,6 +254,9 @@ fun AppNavGraph(
                 arguments = listOf(navArgument("courseId") { type = NavType.LongType })
             ) { backStack ->
                 val courseId = backStack.arguments?.getLong("courseId") ?: 1L
+                LaunchedEffect(courseId) {
+                    viewModel.selectCourse(courseId)
+                }
                 DiagnosticScreen(
                     courseId = courseId,
                     viewModel = viewModel,
@@ -255,6 +274,9 @@ fun AppNavGraph(
                 arguments = listOf(navArgument("courseId") { type = NavType.LongType })
             ) { backStack ->
                 val courseId = backStack.arguments?.getLong("courseId") ?: 1L
+                LaunchedEffect(courseId) {
+                    viewModel.selectCourse(courseId)
+                }
                 DiagnosticResultScreen(
                     courseId = courseId,
                     viewModel = viewModel,

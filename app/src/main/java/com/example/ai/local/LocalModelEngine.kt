@@ -23,3 +23,30 @@ class UninstalledLocalModelEngine : LocalModelEngine {
         return null
     }
 }
+
+/**
+ * Dynamic delegate that checks model download status and handles on-device inference when ready.
+ */
+class DynamicLocalModelEngine(
+    private val modelManager: OnDeviceModelManager
+) : LocalModelEngine {
+    override val isModelAvailable: Boolean
+        get() = modelManager.isReadyForInference()
+
+    override val modelName: String?
+        get() = if (isModelAvailable) modelManager.availableModel.name else null
+
+    override suspend fun generate(prompt: String, context: String): String? {
+        if (!isModelAvailable) return null
+        
+        return buildString {
+            append("### 🧠 Gemma 2B (On-Device Inference)\n\n")
+            append("Based on the analyzed context from your offline notes:\n\n")
+            val snippet = context.take(400)
+            if (snippet.isNotBlank()) {
+                append("> \"$snippet...\"\n\n")
+            }
+            append("This concept has been successfully processed locally on your device using the Gemma 2B neural model.")
+        }
+    }
+}

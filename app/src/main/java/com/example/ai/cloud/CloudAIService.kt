@@ -213,13 +213,19 @@ open class CloudAIService : AIService {
     override suspend fun generateQuestionsForSkill(
         skill: SkillEntity,
         count: Int,
-        difficulty: String
+        difficulty: String,
+        relevantChunks: List<DocumentChunkEntity>
     ): List<QuestionEntity> = withContext(Dispatchers.IO) {
-        if (!isConfigured()) return@withContext emptyList()
+        if (!isConfigured() || relevantChunks.isEmpty()) return@withContext emptyList()
+
+        val topChunk = relevantChunks.firstOrNull { it.text.isNotBlank() } ?: return@withContext emptyList()
+        val contextText = relevantChunks.joinToString("\n\n") { chunk ->
+            "[Document: ${chunk.sourceDocumentName}, Page: ${chunk.pageNumber}]\n${chunk.text}"
+        }
 
         val prompt = buildString {
-            append("Generate $count multiple-choice questions for the student skill '${skill.name}' at $difficulty difficulty.\n")
-            append("Skill description: ${skill.description}\n\n")
+            append("Generate $count multiple-choice questions grounded strictly in the provided document context for skill '${skill.name}' at $difficulty difficulty.\n\n")
+            append("Context:\n$contextText\n\n")
             append("Return valid JSON format matching this schema:\n")
             append("[\n")
             append("  {\n")
@@ -267,9 +273,9 @@ open class CloudAIService : AIService {
                         correctAnswerIndex = obj.getInt("correctIndex").coerceIn(0, 3),
                         explanation = obj.getString("explanation"),
                         difficulty = difficulty,
-                        hint = obj.optString("hint", "Review definition of ${skill.name}"),
-                        sourceDocumentName = skill.sourceDocumentName,
-                        sourcePage = skill.sourcePage
+                        hint = obj.optString("hint", "Review page ${topChunk.pageNumber}"),
+                        sourceDocumentName = topChunk.sourceDocumentName,
+                        sourcePage = topChunk.pageNumber
                     )
                 )
             }
