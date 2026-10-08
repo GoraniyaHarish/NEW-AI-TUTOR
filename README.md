@@ -178,11 +178,7 @@ NEW-AI-TUTOR/
 │   ├── DEVELOPMENT.md    # Build instructions, test verification, and setup
 │   ├── PROJECT_DEFINITION.md
 │   ├── AI_ENGINEERING_RULES.md
-│   ├── CURRENT_PROJECT_AUDIT.md
-│   └── PRESENTATION_DECK.md
-├── submission/           # Hackathon presentation and submission assets
-│   ├── The_Visionaries_CT3Y_LearnMate.pptx
-│   └── presentation.html
+│   └── CURRENT_PROJECT_AUDIT.md
 ├── gradle/               # Gradle wrapper and version catalog
 │   ├── libs.versions.toml
 │   └── wrapper/
@@ -193,17 +189,3 @@ NEW-AI-TUTOR/
 ├── gradlew               # Gradle wrapper executable
 └── README.md             # Project overview and quickstart
 ```
-
----
-
-## Hackathon Submission
-
-- **Event**: Code Carnival 3.0
-- **Problem Statement**: PS-06 On-device personalized learning assistant
-- **Team**: The Visionaries (`CT3Y`)
-- **Team Members**:
-  - Harish Goraniya (Leader)
-  - Krishna Parmar
-  - Prushti Seladiya
-  - Sakshi Talaviya
-- **Submission Deck**: `submission/The_Visionaries_CT3Y_LearnMate.pptx`
