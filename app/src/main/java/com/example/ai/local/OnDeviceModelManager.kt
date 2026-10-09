@@ -37,11 +37,11 @@ class OnDeviceModelManager(private val context: Context) {
         architecture = "Google Gemma 2",
         sizeMb = 1420,
         ramRequiredGb = 2.5f,
-        description = "On-device neural LLM for deep offline tutoring and reasoning without internet connection.",
+        description = "Planned optional model. Download and neural inference are not implemented in this build.",
         targetFileName = "gemma-2b-it-cpu-int4.bin"
     )
 
-    private val _downloadState = MutableStateFlow<ModelDownloadState>(checkInitialState())
+    private val _downloadState = MutableStateFlow<ModelDownloadState>(ModelDownloadState.NotDownloaded)
     val downloadState: StateFlow<ModelDownloadState> = _downloadState.asStateFlow()
 
     private val _isNeuralEngineEnabled = MutableStateFlow(false)
@@ -52,33 +52,13 @@ class OnDeviceModelManager(private val context: Context) {
         return File(dir, availableModel.targetFileName)
     }
 
-    private fun checkInitialState(): ModelDownloadState {
-        val file = getModelFile()
-        // A genuine quantized Gemma 2B INT4 model is over 1 GB in size
-        return if (file.exists() && file.length() > 500L * 1024L * 1024L) {
-            ModelDownloadState.Downloaded(file.absolutePath, (file.length() / (1024 * 1024)).toInt())
-        } else {
-            ModelDownloadState.NotDownloaded
-        }
-    }
-
+    @Suppress("UNUSED_PARAMETER")
     fun startDownload(onCompleted: () -> Unit = {}) {
-        // Honest download state: inform user that weights must be installed from official repo
-        if (_downloadState.value is ModelDownloadState.Downloading) return
-
-        // Check if real model file is already present
-        val file = getModelFile()
-        if (file.exists() && file.length() > 500L * 1024L * 1024L) {
-            _downloadState.value = ModelDownloadState.Downloaded(file.absolutePath, (file.length() / (1024 * 1024)).toInt())
-            _isNeuralEngineEnabled.value = true
-            onCompleted()
-            return
-        }
-
-        // Truthfully report that external neural model endpoint is not configured in prototype
+        // This build intentionally does not claim to download or run model weights.
         _downloadState.value = ModelDownloadState.Error(
-            "On-device neural model (Gemma 2B INT4 ~1.4GB) requires approved repository endpoint. Please place weights in app models directory or use Cloud AI / Offline Knowledge Base."
+            "On-device model download and neural inference are not implemented in this build. No model was downloaded or run. Use the Offline Knowledge Base or Cloud AI."
         )
+        _isNeuralEngineEnabled.value = false
     }
 
     fun cancelDownload() {
@@ -97,13 +77,11 @@ class OnDeviceModelManager(private val context: Context) {
         _isNeuralEngineEnabled.value = false
     }
 
+    @Suppress("UNUSED_PARAMETER")
     fun setNeuralEngineEnabled(enabled: Boolean) {
-        if (_downloadState.value is ModelDownloadState.Downloaded) {
-            _isNeuralEngineEnabled.value = enabled
-        }
+        // Keep neural inference disabled until a real, verified runtime is integrated.
+        _isNeuralEngineEnabled.value = false
     }
 
-    fun isReadyForInference(): Boolean {
-        return _downloadState.value is ModelDownloadState.Downloaded && _isNeuralEngineEnabled.value
-    }
+    fun isReadyForInference(): Boolean = false
 }
