@@ -173,6 +173,7 @@ class LocalAIService(
             )
         }
 
+        val evidenceChunk = requireNotNull(topChunk)
         val baseText = relevantChunks.joinToString("\n") { it.text }
         val sentences = baseText.split(Regex("(?<=[.!?])\\s+")).map { it.trim() }.filter { it.isNotBlank() }
         val summary = if (sentences.isNotEmpty()) {
@@ -214,6 +215,7 @@ class LocalAIService(
             return@withContext emptyList()
         }
 
+        val evidenceChunk = requireNotNull(topChunk)
         val snippet = topChunk.text.split(Regex("(?<=[.!?])\\s+")).firstOrNull()?.trim() ?: topChunk.text.take(120)
         
         // Vary correct answer index deterministically from 0 to 3 using java.util.Random with a deterministic seed
