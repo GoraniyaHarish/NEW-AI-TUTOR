@@ -141,7 +141,7 @@ fun ProfileScreen(
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(
-                                        text = "100% Offline Capable",
+                                        text = "Offline learning available",
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = BrandEmerald

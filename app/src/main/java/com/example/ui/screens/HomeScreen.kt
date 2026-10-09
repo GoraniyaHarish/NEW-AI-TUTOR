@@ -96,7 +96,7 @@ fun HomeScreen(
 
         item {
             Surface(
-                modifier = Modifier.fillMaxWidth().clickable { viewModel.toggleOfflineSimulation() },
+                modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(15.dp),
                 color = if (isOnline) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant
             ) {
@@ -105,10 +105,10 @@ fun HomeScreen(
                     Spacer(Modifier.width(10.dp))
                     Text(
                         text = when {
-                            isSimulatedOffline -> "Offline preview is on · tap here to restore your network view"
-                            cloudConfigured -> "Internet connected · Gemini configured; a successful reply confirms access"
-                            isOnline -> "Internet connected · LearnMate is ready in offline tutor mode"
-                            else -> "Offline · your saved notes and learning tools remain available"
+                            isSimulatedOffline -> "Offline preview is on · change this in Settings"
+                            cloudConfigured -> "Online · cloud-enhanced tutoring may be available"
+                            isOnline -> "Online · your saved-note tutor is available"
+                            else -> "Offline · saved notes and local study tools remain available"
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface,

@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -63,7 +64,8 @@ import com.example.ui.viewmodel.MainViewModel
 @Composable
 fun TutorScreen(
     viewModel: MainViewModel,
-    initialPrompt: String? = null
+    initialPrompt: String? = null,
+    onNavigateToCreateCourse: () -> Unit
 ) {
     val activeCourse by viewModel.activeCourse.collectAsState()
     val isOnline by viewModel.isOnline.collectAsState()
@@ -111,9 +113,9 @@ fun TutorScreen(
                         Text("AI Tutor", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         Text(
                             text = when {
-                                isCloudAIAvailable -> "Cloud AI configured · a successful reply confirms access"
-                                isOnline -> "Local tutor (Firebase AI Logic not configured)"
-                                else -> "Offline notes tutor (no neural model installed)"
+                                isSimulatedOffline || !isOnline -> "Offline · ask about your saved notes"
+                                isCloudAIAvailable -> "Online · enhanced tutoring may be available"
+                                else -> "Ask about your selected course"
                             },
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -150,13 +152,40 @@ fun TutorScreen(
             ) {
                 if (activeCourse == null) {
                     item {
-                        Text(
-                            text = "Create or select a course before asking questions. Your tutor uses only that course's material.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 16.dp)
-                                .testTag("tutor_empty_course_message")
+                                .padding(vertical = 20.dp)
+                                .testTag("tutor_empty_course_message"),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text(
+                                text = "Let's get your tutor ready",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Create a course and add your notes first. LearnMate will use that material to help answer your questions.",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Button(
+                                onClick = onNavigateToCreateCourse,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Create my first course")
+                            }
+                        }
+                    }
+                } else if (chatMessages.isEmpty()) {
+                    item {
+                        Text(
+                            text = "Ask a question about your notes, or try a suggestion below. If LearnMate can't find a relevant passage, it will tell you.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp)
+                                .testTag("tutor_welcome_message")
                         )
                     }
                 }

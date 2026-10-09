@@ -24,12 +24,16 @@ class StudentJourneyInstrumentedTest {
 
     private fun ensureHome() {
         composeRule.waitUntil(timeoutMillis = 30_000) {
-            composeRule.onAllNodesWithTag("skip_to_demo_button").fetchSemanticsNodes().isNotEmpty() ||
+            composeRule.onAllNodesWithTag("onboarding_screen").fetchSemanticsNodes().isNotEmpty() ||
                 composeRule.onAllNodesWithTag("home_screen").fetchSemanticsNodes().isNotEmpty()
         }
 
-        if (composeRule.onAllNodesWithTag("skip_to_demo_button").fetchSemanticsNodes().isNotEmpty()) {
-            composeRule.onNodeWithTag("skip_to_demo_button").performClick()
+        if (composeRule.onAllNodesWithTag("onboarding_screen").fetchSemanticsNodes().isNotEmpty()) {
+            // Finish the intro; onboarding leads to Home so students can choose their next step.
+            while (composeRule.onAllNodesWithTag("get_started_button").fetchSemanticsNodes().isEmpty()) {
+                composeRule.onNodeWithTag("onboarding_next_button").performClick()
+            }
+            composeRule.onNodeWithTag("get_started_button").performClick()
         }
 
         composeRule.waitUntil(timeoutMillis = 30_000) {

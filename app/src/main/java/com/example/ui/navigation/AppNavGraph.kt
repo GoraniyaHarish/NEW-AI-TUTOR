@@ -127,7 +127,7 @@ fun AppNavGraph(
                 OnboardingScreen(
                     onFinishOnboarding = {
                         viewModel.setOnboardingCompleted(true)
-                        navController.navigate(Screen.CreateCourse.route) {
+                        navController.navigate(Screen.Home.route) {
                             popUpTo(Screen.Onboarding.route) { inclusive = true }
                         }
                     }
@@ -189,7 +189,8 @@ fun AppNavGraph(
             composable(Screen.Tutor.route) {
                 TutorScreen(
                     viewModel = viewModel,
-                    initialPrompt = tutorInitialPrompt
+                    initialPrompt = tutorInitialPrompt,
+                    onNavigateToCreateCourse = { navController.navigate(Screen.CreateCourse.route) }
                 )
             }
 

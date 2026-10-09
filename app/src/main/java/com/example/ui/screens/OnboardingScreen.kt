@@ -64,25 +64,25 @@ fun OnboardingScreen(
     val pages = listOf(
         OnboardingPageData(
             title = "Meet LearnMate",
-            description = "Your personal offline AI study assistant. Transform textbook notes, syllabus PDFs, and problem sets into dynamic learning tracks.",
+            description = "A study companion that helps you organise your notes, ask questions, and practise what you learn.",
             icon = Icons.Default.AutoAwesome,
             accentColor = BrandBluePrimary
         ),
         OnboardingPageData(
             title = "Turn Study Material Into a Course",
-            description = "Upload your lecture notes, PDFs, and syllabus. LearnMate extracts topics, chapters, and prerequisite dependencies automatically.",
+            description = "Add a text-based PDF or paste your notes. LearnMate will prepare the readable material for study.",
             icon = Icons.Default.MenuBook,
             accentColor = BrandCyan
         ),
         OnboardingPageData(
             title = "Find What You Know & What Needs Attention",
-            description = "Take targeted diagnostic assessments to uncover mastery gaps, weak prerequisites, and personalized daily recommendations.",
+            description = "Practise with questions, check your progress, and revisit topics that need more attention.",
             icon = Icons.Default.Bolt,
             accentColor = BrandViolet
         ),
         OnboardingPageData(
             title = "Learn Even Without Internet",
-            description = "100% offline-first architecture. All skill graphs, local RAG retrieval, tutoring, and adaptive quizzes run securely on your device.",
+            description = "Your saved notes and local study tools remain available offline. Online tutoring may offer extra help when connected.",
             icon = Icons.Default.CloudOff,
             accentColor = BrandEmerald
         )
@@ -99,6 +99,15 @@ fun OnboardingScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween
     ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End
+        ) {
+            TextButton(onClick = onFinishOnboarding) {
+                Text("Skip intro")
+            }
+        }
+
         // Center Content
         AnimatedContent(
             targetState = currentPage,
@@ -203,7 +212,7 @@ fun OnboardingScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
                     Text(
-                        text = "Get Started — Build My Course",
+                        text = "Get started",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold
                     )
