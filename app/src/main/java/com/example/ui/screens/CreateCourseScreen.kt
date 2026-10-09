@@ -402,7 +402,9 @@ fun CreateCourseScreen(
                         onValueChange = { customTextTitle = it },
                         label = { Text("Document Title (e.g. Chapter 1 Notes)") },
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("custom_notes_title_input")
                     )
                     OutlinedTextField(
                         value = customTextContent,
@@ -411,6 +413,7 @@ fun CreateCourseScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(150.dp)
+                            .testTag("custom_notes_content_input")
                     )
                 }
             },
