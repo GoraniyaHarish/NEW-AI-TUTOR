@@ -44,7 +44,7 @@ class LocalAIService(
         // document-grounded when retrieval returned no readable passage.
         if (!hasEvidence) {
             val missingAnswer = buildString {
-                append("I couldn't find a relevant passage in your uploaded study materials for this question.\n\n")
+                append("This concept wasn't found in your uploaded study materials. I couldn't find a relevant passage for this question.\n\n")
                 append("Offline mode currently uses local document search and structured tutoring; an on-device neural model is not installed.\n\n")
                 append("Try asking about a topic covered in your imported notes, or connect to Cloud AI for questions beyond those materials.")
             }
