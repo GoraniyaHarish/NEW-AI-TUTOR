@@ -310,4 +310,3 @@ class PdfTextExtractor(private val context: Context) {
         }
     }
 }
-}
