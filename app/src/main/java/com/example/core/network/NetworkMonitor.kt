@@ -17,7 +17,7 @@ class NetworkMonitor(context: Context) {
     // Real hardware connectivity
     private val _isDeviceOnline = MutableStateFlow(checkInitialConnectivity())
 
-    // Hackathon demo simulation override (allows testing offline mode on demand)
+    // Allows testing offline behavior on demand while the device remains connected.
     private val _isOfflineSimulated = MutableStateFlow(false)
     val isOfflineSimulated: StateFlow<Boolean> = _isOfflineSimulated.asStateFlow()
 

@@ -3,9 +3,11 @@ package com.example.data.repository
 import com.example.ai.AIRouter
 import com.example.ai.LessonExplanation
 import com.example.ai.TutorResponse
+import com.example.ai.local.LocalAIService
+import com.example.ai.nlp.QueryUnderstanding
 import com.example.ai.retrieval.LocalRetriever
 import com.example.core.storage.ExtractedChunk
-import com.example.data.demo.DemoDataLoader
+import androidx.room.withTransaction
 import com.example.data.local.database.LearnMateDatabase
 import com.example.data.local.entity.ChatMessageEntity
 import com.example.data.local.entity.CourseEntity
@@ -24,6 +26,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 
 class LearnMateRepository(
@@ -32,6 +35,7 @@ class LearnMateRepository(
     private val retriever: LocalRetriever
 ) {
     private val _activeCourseId = MutableStateFlow<Long?>(null)
+    private val offlineQuizGenerator = LocalAIService()
     val activeCourseId: StateFlow<Long?> = _activeCourseId.asStateFlow()
 
     fun setActiveCourse(id: Long) {
@@ -173,19 +177,8 @@ class LearnMateRepository(
                 val skillIds = database.skillDao().insertSkills(extractedSkills)
 
                 onProgress?.invoke(5, 6f / 7f)
-                // Setup prerequisite relationships based on document structure
-                val relations = mutableListOf<SkillRelationEntity>()
-                for (i in 0 until skillIds.size - 1) {
-                    relations.add(
-                        SkillRelationEntity(
-                            courseId = courseId,
-                            fromSkillId = skillIds[i],
-                            toSkillId = skillIds[i + 1],
-                            relationType = "PREREQUISITE"
-                        )
-                    )
-                }
-                database.skillRelationDao().insertRelations(relations)
+                // Document order alone does not establish a prerequisite. Keep the graph
+                // unlinked unless an explicit relationship is extracted in a later pass.
 
                 // Initialize learner skills (not assessed)
                 val learnerSkills = skillIds.map { id ->
@@ -230,40 +223,39 @@ class LearnMateRepository(
         chunks: List<DocumentChunkEntity>
     ): List<SkillEntity> {
         val discoveredSkills = mutableListOf<SkillEntity>()
-
-        // 1. Scan chunks for structured headings or section markers
-        val sectionRegex = Regex("(?i)(?:Chapter|Unit|Module|Section|Topic)\\s*[:\\d.-]*\\s*([A-Za-z0-9 ,_'-]{3,50})")
+        data class SourceLine(val text: String, val nextText: String, val chunk: DocumentChunkEntity, val firstInChunk: Boolean)
         val lines = chunks.flatMap { chunk ->
-            chunk.text.lines().map { line ->
-                object {
-                    val lineText = line.trim()
-                    val pageNum = chunk.pageNumber
-                    val chunkId = chunk.id
-                    val docId = chunk.documentId
-                    val sourceDoc = chunk.sourceDocumentName
-                }
+            val textLines = chunk.text.lines().map(String::trim).filter(String::isNotBlank)
+            textLines.mapIndexed { index, line ->
+                SourceLine(line, textLines.getOrNull(index + 1).orEmpty(), chunk, index == 0)
             }
         }
+        val explicitHeading = Regex("(?i)^\\s*(?:chapter|unit|module|section|topic)\\s+\\d+(?:\\.\\d+)*\\s*[:.)-]\\s*(.{3,56})\\s*$")
+        val genericHeadings = setOf("equation", "overview", "introduction", "conclusion", "references", "contents", "check your understanding")
 
         for (item in lines) {
-            val match = sectionRegex.find(item.lineText)
-            if (match != null) {
-                val candidateName = match.groupValues[1].trim().trimEnd(':', '.', '-')
-                if (candidateName.length >= 3 && discoveredSkills.none { it.name.equals(candidateName, ignoreCase = true) }) {
-                    discoveredSkills.add(
-                        SkillEntity(
-                            courseId = courseId,
-                            name = candidateName,
-                            description = "Key concept extracted from ${item.sourceDoc}: ${item.lineText}",
-                            chapter = "Course Module",
-                            difficulty = "MEDIUM",
-                            sourceDocumentId = item.docId,
-                            sourceDocumentName = item.sourceDoc,
-                            sourcePage = item.pageNum,
-                            confidence = 0.92f
-                        )
+            val explicitName = explicitHeading.matchEntire(item.text)?.groupValues?.get(1)?.trim()
+            val wordCount = item.text.split(Regex("\\s+")).size
+            val looksLikeHeading = !item.firstInChunk &&
+                item.text.length in 4..56 && wordCount <= 7 &&
+                !item.text.contains('|') && !item.text.endsWith('.') && !item.text.endsWith(';') &&
+                item.text.lowercase() !in genericHeadings &&
+                item.nextText.length >= 35
+            val candidateName = explicitName ?: item.text.takeIf { looksLikeHeading }
+            if (!candidateName.isNullOrBlank() && discoveredSkills.none { it.name.equals(candidateName, ignoreCase = true) }) {
+                discoveredSkills.add(
+                    SkillEntity(
+                        courseId = courseId,
+                        name = candidateName.trim().trimEnd(':', '.', '-'),
+                        description = item.nextText.ifBlank { "Heading found in ${item.chunk.sourceDocumentName}." },
+                        chapter = "Course Topics",
+                        difficulty = "MEDIUM",
+                        sourceDocumentId = item.chunk.documentId,
+                        sourceDocumentName = item.chunk.sourceDocumentName,
+                        sourcePage = item.chunk.pageNumber,
+                        confidence = if (explicitName != null) 0.92f else 0.78f
                     )
-                }
+                )
             }
             if (discoveredSkills.size >= 7) break
         }
@@ -273,8 +265,11 @@ class LearnMateRepository(
             val uniqueParagraphs = chunks.take(6)
             uniqueParagraphs.forEachIndexed { index, chunk ->
                 val firstSentence = chunk.text.split(Regex("(?<=[.!?])\\s+")).firstOrNull()?.trim() ?: ""
-                val titleWords = firstSentence.split(" ").take(4).joinToString(" ")
-                val cleanTitle = if (titleWords.isNotBlank() && titleWords.length < 35) titleWords else "Topic ${index + 1}"
+                val cleanTitle = when {
+                    firstSentence.isBlank() -> ""
+                    firstSentence.length <= 48 -> firstSentence
+                    else -> firstSentence.take(47).trimEnd() + "…"
+                }
 
                 if (firstSentence.isNotBlank() && cleanTitle.isNotBlank()) {
                     discoveredSkills.add(
@@ -335,10 +330,26 @@ class LearnMateRepository(
 
         // Retrieve chunks
         val allChunks = database.documentChunkDao().getChunksSync(courseId)
-        val retrieved = retriever.search(query, allChunks, courseId = courseId, topK = 4)
-        val relevantChunks = retrieved.map { it.chunk }
-
         val skill = if (skillId != null) database.skillDao().getSkillById(skillId) else null
+
+        val isSummary = QueryUnderstanding.analyze(query, skill?.name).intent in setOf(
+            com.example.ai.nlp.TutorIntent.SUMMARY,
+            com.example.ai.nlp.TutorIntent.REVISE
+        )
+        val courseSkills = if (isSummary && skill == null) database.skillDao().getSkillsSync(courseId) else emptyList()
+        val mentionsKnownTopic = courseSkills.any { topic ->
+            val topicTerms = QueryUnderstanding.analyze(topic.name).focusTerms
+            topicTerms.any { term -> query.contains(term, ignoreCase = true) }
+        }
+        val isWholeCourseSummary = isSummary && skill == null && (
+            Regex("(?i)\\b(document|documents|file|files|notes|materials|course|whole|entire|all|uploaded)\\b").containsMatchIn(query) ||
+                !mentionsKnownTopic
+            )
+        val relevantChunks = if (isWholeCourseSummary) {
+            allChunks.sortedWith(compareBy<DocumentChunkEntity> { it.documentId }.thenBy { it.pageNumber }.thenBy { it.chunkIndex })
+        } else {
+            retriever.search(query, allChunks, courseId = courseId, topK = 8).map { it.chunk }
+        }
 
         // Fetch recent conversation history
         val recentHistory = database.chatMessageDao().getMessagesSync(courseId).takeLast(6)
@@ -361,24 +372,107 @@ class LearnMateRepository(
         response
     }
 
+    suspend fun getCheatSheetChunks(skill: SkillEntity): List<DocumentChunkEntity> = withContext(Dispatchers.IO) {
+        val courseChunks = database.documentChunkDao().getChunksSync(skill.courseId)
+            .filter { it.courseId == skill.courseId && (skill.sourceDocumentId <= 0L || it.documentId == skill.sourceDocumentId) }
+        if (courseChunks.isEmpty()) return@withContext emptyList()
+
+        val byTopic = retriever.search(
+            query = skill.name,
+            chunks = courseChunks,
+            courseId = skill.courseId,
+            documentId = skill.sourceDocumentId.takeIf { it > 0L },
+            topK = 8,
+            minScore = 0f
+        ).map { it.chunk }
+        val sourcePage = courseChunks.filter { it.pageNumber == skill.sourcePage }
+        (byTopic + sourcePage).distinctBy { it.id }
+            .sortedWith(compareBy<DocumentChunkEntity> { it.pageNumber }.thenBy { it.chunkIndex })
+    }
+
     suspend fun getLessonExplanation(skill: SkillEntity): LessonExplanation = withContext(Dispatchers.IO) {
         val allChunks = database.documentChunkDao().getChunksSync(skill.courseId)
         val retrieved = retriever.search(skill.name, allChunks, courseId = skill.courseId, topK = 3)
         aiRouter.generateExplanation(skill, retrieved.map { it.chunk })
     }
 
-    suspend fun resetToDemoCourse(): Long = withContext(Dispatchers.IO) {
-        val courseId = DemoDataLoader.populateDemoCourse(database)
-        _activeCourseId.value = courseId
-        courseId
-    }
-
     suspend fun ensureInitialData() = withContext(Dispatchers.IO) {
-        // Honest start: do not automatically seed demo course data.
-        // A fresh installation starts with an empty course dashboard unless the user explicitly loads a demo course.
+        removeLegacyDemoCourses()
+        val courses = database.courseDao().getAllCourses().first()
+        for (course in courses) {
+            val oldSkills = database.skillDao().getSkillsSync(course.id)
+            val learnerProgress = database.learnerSkillDao().getLearnerSkillsSync(course.id)
+            val attempts = database.quizAttemptDao().getAttemptsForCourseSync(course.id)
+            val canSafelyRefreshMap = !course.isDemo && oldSkills.isNotEmpty() &&
+                attempts.isEmpty() && learnerProgress.none { it.attempts > 0 } &&
+                oldSkills.all { it.chapter in setOf("Course Module", "Core Concepts") }
+
+            if (canSafelyRefreshMap) {
+                val chunks = database.documentChunkDao().getChunksSync(course.id)
+                val docs = database.documentDao().getDocumentsSync(course.id)
+                val improvedSkills = buildSkillsFromMaterial(course.id, docs.firstOrNull()?.fileName ?: "Material", chunks)
+                val oldNames = oldSkills.map { it.name.trim().lowercase() }.toSet()
+                val newNames = improvedSkills.map { it.name.trim().lowercase() }.toSet()
+                if (improvedSkills.size > oldSkills.size && !newNames.containsAll(oldNames)) {
+                    // Refresh only untouched, generated maps. Any course with real practice history is preserved.
+                    database.learningPlanDao().deletePlanItemsForCourse(course.id)
+                    database.learningPlanDao().deletePlansForCourse(course.id)
+                    database.questionDao().deleteQuestionsForCourse(course.id)
+                    database.skillRelationDao().deleteRelationsForCourse(course.id)
+                    database.learnerSkillDao().deleteLearnerSkillsForCourse(course.id)
+                    database.skillDao().deleteSkillsForCourse(course.id)
+                    val ids = database.skillDao().insertSkills(improvedSkills)
+                    database.learnerSkillDao().insertLearnerSkills(ids.map { id ->
+                        LearnerSkillEntity(skillId = id, courseId = course.id, attempts = 0)
+                    })
+                    val refreshedQuestions = improvedSkills.zip(ids).flatMap { (skill, id) ->
+                        val evidence = retriever.search(skill.name, chunks, courseId = course.id, topK = 4).map { it.chunk }
+                        offlineQuizGenerator.generateQuestionsForSkill(skill.copy(id = id), 2, "MEDIUM", evidence)
+                    }
+                    database.questionDao().insertQuestions(refreshedQuestions)
+                    refreshLearningPlan(course.id)
+                }
+            }
+
+            val legacyQuestions = database.questionDao().getLegacyPlaceholderQuestions(course.id)
+            if (legacyQuestions.isNotEmpty()) {
+                database.questionDao().deleteLegacyPlaceholderQuestions(course.id)
+                val skills = database.skillDao().getSkillsSync(course.id)
+                val chunks = database.documentChunkDao().getChunksSync(course.id)
+                val refreshedQuestions = skills.flatMap { skill ->
+                    val evidence = retriever.search(skill.name, chunks, courseId = course.id, topK = 4).map { it.chunk }
+                    offlineQuizGenerator.generateQuestionsForSkill(skill, 2, "MEDIUM", evidence)
+                }
+                database.questionDao().insertQuestions(refreshedQuestions)
+            }
+        }
+
         val firstCourse = database.courseDao().getFirstCourse()
         if (_activeCourseId.value == null && firstCourse != null) {
             _activeCourseId.value = firstCourse.id
+        }
+    }
+
+    private suspend fun removeLegacyDemoCourses() {
+        val legacyDemoCourses = database.courseDao().getLegacyDemoCourses()
+        for (course in legacyDemoCourses) {
+            database.withTransaction {
+                val documents = database.documentDao().getDocumentsSync(course.id)
+                database.learningPlanDao().deletePlanItemsForCourse(course.id)
+                database.learningPlanDao().deletePlansForCourse(course.id)
+                database.quizAttemptDao().deleteAttemptsForCourse(course.id)
+                database.questionDao().deleteQuestionsForCourse(course.id)
+                database.chatMessageDao().clearMessagesForCourse(course.id)
+                database.skillRelationDao().deleteRelationsForCourse(course.id)
+                database.learnerSkillDao().deleteLearnerSkillsForCourse(course.id)
+                database.skillDao().deleteSkillsForCourse(course.id)
+                for (document in documents) {
+                    database.documentChunkDao().deleteChunksForDocument(document.id)
+                    database.documentDao().deleteDocument(document.id)
+                }
+                database.courseDao().deleteCourse(course.id)
+            }
+            if (_activeCourseId.value == course.id) _activeCourseId.value = null
         }
     }
 }

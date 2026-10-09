@@ -67,6 +67,7 @@ fun TutorScreen(
 ) {
     val activeCourse by viewModel.activeCourse.collectAsState()
     val isOnline by viewModel.isOnline.collectAsState()
+    val isCloudAIAvailable by viewModel.isCloudAIAvailable.collectAsState()
     val isSimulatedOffline by viewModel.isSimulatedOffline.collectAsState()
     val chatMessages by viewModel.chatMessages.collectAsState()
     val isThinking by viewModel.isTutorThinking.collectAsState()
@@ -109,7 +110,11 @@ fun TutorScreen(
                     Column {
                         Text("AI Tutor", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         Text(
-                            text = if (isOnline) "Cloud AI Active (Gemini)" else "On-Device Offline AI",
+                            text = when {
+                                isCloudAIAvailable -> "Cloud AI configured · a successful reply confirms access"
+                                isOnline -> "Local tutor (Firebase AI Logic not configured)"
+                                else -> "Offline notes tutor (no neural model installed)"
+                            },
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -130,6 +135,7 @@ fun TutorScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .fillMaxWidth()
                 .testTag("ai_tutor_screen")
         ) {
             // Chat message stream
@@ -142,6 +148,18 @@ fun TutorScreen(
                 verticalArrangement = Arrangement.spacedBy(14.dp),
                 contentPadding = PaddingValues(vertical = 12.dp)
             ) {
+                if (activeCourse == null) {
+                    item {
+                        Text(
+                            text = "Create or select a course before asking questions. Your tutor uses only that course's material.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 16.dp)
+                                .testTag("tutor_empty_course_message")
+                        )
+                    }
+                }
                 items(chatMessages) { message ->
                     ChatMessageBubble(message = message)
                 }
@@ -180,9 +198,11 @@ fun TutorScreen(
                 items(suggestedQuestions) { prompt ->
                     FilterChip(
                         selected = false,
+                        enabled = activeCourse != null,
                         onClick = {
-                            val cId = activeCourse?.id ?: 1L
-                            viewModel.sendTutorMessage(cId, prompt)
+                            activeCourse?.let { course ->
+                                viewModel.sendTutorMessage(course.id, prompt)
+                            }
                         },
                         label = {
                             Text(text = prompt, fontSize = 12.sp)
@@ -216,10 +236,12 @@ fun TutorScreen(
                     Spacer(modifier = Modifier.width(8.dp))
 
                     IconButton(
+                        enabled = activeCourse != null && inputText.isNotBlank(),
                         onClick = {
-                            if (inputText.isNotBlank()) {
-                                val cId = activeCourse?.id ?: 1L
-                                viewModel.sendTutorMessage(cId, inputText)
+                            activeCourse?.let { course ->
+                                if (inputText.isNotBlank()) {
+                                    viewModel.sendTutorMessage(course.id, inputText)
+                                }
                                 inputText = ""
                             }
                         },
@@ -285,7 +307,7 @@ fun ChatMessageBubble(message: ChatMessageEntity) {
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     Text(
-                        text = message.content,
+                        text = presentTutorText(message.content),
                         fontSize = 14.sp,
                         color = if (isUser) Color.White else MaterialTheme.colorScheme.onSurface,
                         lineHeight = 20.sp
@@ -339,4 +361,32 @@ fun ChatMessageBubble(message: ChatMessageEntity) {
             }
         }
     }
+}
+
+internal fun presentTutorText(rawText: String): String {
+    val normalized = rawText
+        .replace("\r\n", "\n")
+        .replace('\r', '\n')
+        .replace(Regex("[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F]"), "")
+        .replace(Regex("\\[([^\\]]+)]\\((?:https?://)?[^)]+\\)"), "$1")
+
+    return normalized.lines().mapNotNull { rawLine ->
+        val line = rawLine.trimEnd()
+        val trimmed = line.trimStart()
+        when {
+            trimmed.matches(Regex("\\|?\\s*:?-{3,}:?\\s*(\\|\\s*:?-{3,}:?\\s*)+\\|?")) -> null
+            trimmed.startsWith("|") && trimmed.endsWith("|") ->
+                trimmed.trim('|').split('|').joinToString("  •  ") { it.trim() }.takeIf { it.isNotBlank() }
+            else -> line
+                .replace(Regex("^\\s{0,3}#{1,6}\\s*"), "")
+                .replace(Regex("^\\s*>\\s?"), "")
+                .replace(Regex("\\*\\*(.+?)\\*\\*|__(.+?)__"), "$1$2")
+                .replace(Regex("(?<!\\*)\\*([^*]+)\\*(?!\\*)|(?<!_)_([^_]+)_(?!_)"), "$1$2")
+                .replace(Regex("`{1,3}"), "")
+                .replace(Regex("^\\s*[-+*]\\s+"), "• ")
+                .trimEnd()
+        }
+    }.joinToString("\n")
+        .replace(Regex("\\n{3,}"), "\n\n")
+        .trim()
 }

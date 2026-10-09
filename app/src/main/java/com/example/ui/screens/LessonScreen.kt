@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -122,6 +124,9 @@ fun LessonScreen(
 
     var selectedTab by remember { mutableIntStateOf(0) } // 0 = Notes & Lesson, 1 = Guided Problem Solver
     var showCheatSheet by remember { mutableStateOf(false) }
+    var cheatSheetData by remember(skill?.id) {
+        mutableStateOf(skill?.let { CheatSheetGenerator.generateCheatSheet(it, emptyList()) })
+    }
 
     var explanation by remember { mutableStateOf<LessonExplanation?>(null) }
     var isLoadingExplanation by remember { mutableStateOf(true) }
@@ -131,6 +136,8 @@ fun LessonScreen(
             isLoadingExplanation = true
             explanation = viewModel.repository.getLessonExplanation(skill)
             isLoadingExplanation = false
+            val sourceChunks = viewModel.repository.getCheatSheetChunks(skill)
+            cheatSheetData = CheatSheetGenerator.generateCheatSheet(skill, sourceChunks)
         }
     }
 
@@ -463,24 +470,25 @@ fun LessonScreen(
 
     // Cheat Sheet Bottom Sheet Dialog
     if (showCheatSheet && skill != null) {
-        val sheetData = remember(skill) { CheatSheetGenerator.generateCheatSheet(skill) }
-        CheatSheetModal(
-            data = sheetData,
-            onDismiss = { showCheatSheet = false },
-            onCopy = {
+        cheatSheetData?.let { sheetData ->
+            CheatSheetModal(
+                data = sheetData,
+                onDismiss = { showCheatSheet = false },
+                onCopy = {
                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 val text = buildString {
                     append("${sheetData.title}\n")
                     append("Source: ${sheetData.sourceDoc} (Page ${sheetData.sourcePage})\n\n")
-                    append("FORMULAS:\n")
-                    sheetData.keyFormulas.forEach { append("• ${it.first}: ${it.second}\n") }
-                    append("\nDEFINITIONS:\n")
-                    sheetData.coreDefinitions.forEach { append("• $it\n") }
+                    if (sheetData.keyPoints.isNotEmpty()) append("KEY POINTS:\n${sheetData.keyPoints.joinToString("\n")}\n\n")
+                    if (sheetData.formulas.isNotEmpty()) append("FORMULAS FROM SOURCE:\n${sheetData.formulas.joinToString("\n")}\n\n")
+                    if (sheetData.definitions.isNotEmpty()) append("DEFINITIONS FROM SOURCE:\n${sheetData.definitions.joinToString("\n")}\n\n")
+                    if (sheetData.sourceWarnings.isNotEmpty()) append("SOURCE CAUTIONS:\n${sheetData.sourceWarnings.joinToString("\n")}\n")
                 }
                 clipboard.setPrimaryClip(ClipData.newPlainText("CheatSheet", text))
-                Toast.makeText(context, "Cheat-Sheet copied to clipboard!", Toast.LENGTH_SHORT).show()
-            }
-        )
+                Toast.makeText(context, "Study sheet copied to clipboard!", Toast.LENGTH_SHORT).show()
+                }
+            )
+        }
     }
 }
 
@@ -687,6 +695,7 @@ fun CheatSheetModal(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 12.dp)
         ) {
             Row(
@@ -696,7 +705,7 @@ fun CheatSheetModal(
             ) {
                 Column {
                     Text(text = data.title, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                    Text(text = "Grounded in ${data.sourceDoc} (Page ${data.sourcePage})", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(text = "Source: ${data.sourceDoc} · Page ${data.sourcePage}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
 
                 IconButton(onClick = onCopy) {
@@ -705,42 +714,29 @@ fun CheatSheetModal(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-
-            Text(text = "KEY FORMULAS", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandBluePrimary)
-            Spacer(modifier = Modifier.height(6.dp))
-            data.keyFormulas.forEach { (formula, meaning) ->
-                Surface(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(text = formula, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        Text(text = meaning, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+            if (!data.hasReadableSource) {
+                Text("No readable passage was found for this topic in the selected source. Reprocess a text-based PDF or import a readable file.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                if (data.keyPoints.isNotEmpty()) StudySheetSection("KEY POINTS FROM YOUR NOTES", data.keyPoints)
+                if (data.formulas.isNotEmpty()) StudySheetSection("FORMULAS FOUND IN THE SOURCE", data.formulas)
+                if (data.definitions.isNotEmpty()) StudySheetSection("DEFINITIONS FOUND IN THE SOURCE", data.definitions)
+                if (data.sourceWarnings.isNotEmpty()) StudySheetSection("CAUTIONS MENTIONED IN THE SOURCE", data.sourceWarnings)
+                if (data.keyPoints.isEmpty() && data.formulas.isEmpty() && data.definitions.isEmpty() && data.sourceWarnings.isEmpty()) {
+                    Text("Readable text is available, but no short revision points, formulas, or definition sentences could be extracted. The sheet does not add textbook facts that are absent from your notes.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(text = "CORE LAWS & DEFINITIONS", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandBluePrimary)
-            Spacer(modifier = Modifier.height(6.dp))
-            data.coreDefinitions.forEach { def ->
-                Text(text = "• $def", fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.padding(vertical = 2.dp))
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(text = "EXAM PITFALLS TO AVOID", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFDC2626))
-            Spacer(modifier = Modifier.height(6.dp))
-            data.examPitfalls.forEach { pit ->
-                Text(text = "⚠️ $pit", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 16.sp, modifier = Modifier.padding(vertical = 2.dp))
             }
 
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
+}
+
+@Composable
+private fun StudySheetSection(title: String, lines: List<String>) {
+    Text(text = title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandBluePrimary)
+    Spacer(modifier = Modifier.height(6.dp))
+    lines.forEach { line ->
+        Text(text = "• $line", fontSize = 13.sp, lineHeight = 19.sp, modifier = Modifier.padding(vertical = 3.dp))
+    }
+    Spacer(modifier = Modifier.height(12.dp))
 }

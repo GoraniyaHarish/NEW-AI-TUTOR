@@ -77,15 +77,14 @@ fun QuizScreen(
 
     // Filter questions for this skill or general questions
     val quizQuestions = remember(allQuestions, skillId) {
-        val matching = allQuestions.filter { it.skillId == skillId }
-        if (matching.isNotEmpty()) matching else allQuestions.take(3)
+        allQuestions.filter { it.skillId == skillId }
     }
 
-    val userAnswers = remember { mutableStateMapOf<Long, Int>() }
-    val hintsUsed = remember { mutableStateMapOf<Long, Boolean>() }
+    val userAnswers = remember(skillId) { mutableStateMapOf<Long, Int>() }
+    val hintsUsed = remember(skillId) { mutableStateMapOf<Long, Boolean>() }
 
-    var currentIndex by remember { mutableStateOf(0) }
-    var showHint by remember { mutableStateOf(false) }
+    var currentIndex by remember(skillId) { mutableStateOf(0) }
+    var showHint by remember(skillId) { mutableStateOf(false) }
 
     if (quizQuestions.isEmpty()) {
         Scaffold(
@@ -101,7 +100,16 @@ fun QuizScreen(
             }
         ) { padding ->
             Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text("No practice questions found.")
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(28.dp)) {
+                        Text("Practice is not ready yet", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "LearnMate needs readable facts from this course before it can make a grounded quiz. Add clear notes or try another document.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        OutlinedButton(onClick = onNavigateBack) { Text("Back to learning map") }
+                    }
             }
         }
         return
@@ -154,8 +162,8 @@ fun QuizScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (currentIndex > 0) {
@@ -164,12 +172,13 @@ fun QuizScreen(
                                 showHint = false
                                 currentIndex--
                             },
-                            shape = RoundedCornerShape(10.dp)
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f)
                         ) {
-                            Text("Previous")
+                            Text("Back")
                         }
                     } else {
-                        Spacer(modifier = Modifier.width(1.dp))
+                        Spacer(modifier = Modifier.weight(1f))
                     }
 
                     Button(
@@ -193,9 +202,9 @@ fun QuizScreen(
                         },
                         enabled = selectedOption != null,
                         shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.testTag("quiz_submit_button")
+                        modifier = Modifier.weight(1.35f).testTag("quiz_submit_button")
                     ) {
-                        Text(if (isLast) "Finish & Update Mastery" else "Next Question")
+                        Text(if (isLast) "Finish quiz" else "Next")
                         Spacer(modifier = Modifier.width(6.dp))
                         Icon(
                             imageVector = if (isLast) Icons.Default.Check else Icons.Default.ArrowForward,
@@ -295,9 +304,11 @@ fun QuizScreen(
                 }
 
                 val options = listOf(currentQ.optionA, currentQ.optionB, currentQ.optionC, currentQ.optionD)
-                items(options.size) { optIndex ->
+                    .withIndex().filter { it.value.isNotBlank() }
+                items(options.size) { displayIndex ->
+                    val optIndex = options[displayIndex].index
                     val isSelected = selectedOption == optIndex
-                    val text = options[optIndex]
+                    val text = options[displayIndex].value
                     val letter = ('A' + optIndex).toString()
 
                     Surface(

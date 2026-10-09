@@ -21,7 +21,6 @@ import androidx.compose.material.icons.filled.Brightness4
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
-import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.Card
@@ -57,8 +56,7 @@ fun SettingsScreen(
     viewModel: MainViewModel,
     currentThemeMode: AppThemeMode,
     onThemeModeChange: (AppThemeMode) -> Unit,
-    onNavigateBack: () -> Unit,
-    onDemoReloaded: () -> Unit
+    onNavigateBack: () -> Unit
 ) {
     val isOnline by viewModel.isOnline.collectAsState()
     val isSimulatedOffline by viewModel.isSimulatedOffline.collectAsState()
@@ -154,7 +152,7 @@ fun SettingsScreen(
 
             item {
                 Text(
-                    text = "NETWORK & HACKATHON DEMO",
+                    text = "NETWORK & OFFLINE TESTING",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
@@ -183,7 +181,7 @@ fun SettingsScreen(
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = "Test LearnMate's on-device retrieval and local AI tutor without requiring airplane mode.",
+                                    text = "Test document search and structured offline tutoring without disconnecting from Wi-Fi.",
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -215,7 +213,7 @@ fun SettingsScreen(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = if (isOnline) "Status: Internet available (Cloud AI requires a configured API key)"
+                                    text = if (isOnline) "Status: Internet available (Cloud AI requires Firebase AI Logic configuration)"
                                            else "Status: Offline (Local Knowledge Base Active)",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium,
@@ -423,29 +421,12 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.height(10.dp))
 
                         Text(
-                            text = "• Active Documents: ${documents.size} files\n• Mapped Skills: ${skills.size} skills\n• Local Database: SQLite (Room persistent storage)",
+                            text = "• Course documents: ${documents.size}\n• Topics from your material: ${skills.size}\n• Stored privately on this device (Room)",
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             lineHeight = 20.sp
                         )
 
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        OutlinedButton(
-                            onClick = {
-                                viewModel.resetToDemoCourse {
-                                    onDemoReloaded()
-                                }
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("reset_demo_button"),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Icon(imageVector = Icons.Default.RestartAlt, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Reset / Reload Demo Course Data")
-                        }
                     }
                 }
             }

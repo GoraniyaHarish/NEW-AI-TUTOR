@@ -5,6 +5,7 @@ import com.example.ai.LessonExplanation
 import com.example.ai.TutorResponse
 import com.example.ai.nlp.QueryUnderstanding
 import com.example.ai.nlp.TutorIntent
+import com.example.ai.summarization.DocumentSummaryBuilder
 import com.example.data.local.entity.ChatMessageEntity
 import com.example.data.local.entity.DocumentChunkEntity
 import com.example.data.local.entity.QuestionEntity
@@ -44,9 +45,9 @@ class LocalAIService(
         // document-grounded when retrieval returned no readable passage.
         if (!hasEvidence) {
             val missingAnswer = buildString {
-                append("This concept wasn't found in your uploaded study materials. I couldn't find a relevant passage for this question.\n\n")
+                append("I couldn't find readable text in this course's imported documents for that request. Open Materials to check whether the document finished processing, or import a text-based PDF or TXT file.\n\n")
                 append("Offline mode currently uses local document search and structured tutoring; an on-device neural model is not installed.\n\n")
-                append("Try asking about a topic covered in your imported notes, or connect to Cloud AI for questions beyond those materials.")
+                append("Your other courses stay separate; select the course that contains the document and try again.")
             }
             return@withContext TutorResponse(
                 answer = missingAnswer,
@@ -57,6 +58,29 @@ class LocalAIService(
                 isGroundedInMaterial = false,
                 modelUsed = "offline-knowledge-base"
             )
+        }
+
+        if (analyzed.intent == TutorIntent.SUMMARY || analyzed.intent == TutorIntent.REVISE) {
+            val summaryPoints = DocumentSummaryBuilder.extractiveSummary(relevantChunks, maxPoints = 8)
+            if (summaryPoints.isNotEmpty()) {
+                val documentNames = summaryPoints.map { it.sourceDocumentName }.distinct()
+                val summaryText = buildString {
+                    append("Summary from your uploaded material:\n\n")
+                    summaryPoints.forEach { point ->
+                        append("• ${point.text.trim()} (${point.sourceDocumentName}, page ${point.pageNumber})\n")
+                    }
+                    append("\nThese are key sentences extracted from the selected course material; no additional facts were added.")
+                }
+                return@withContext TutorResponse(
+                    answer = summaryText,
+                    sourceDocName = documentNames.singleOrNull(),
+                    sourcePage = summaryPoints.firstOrNull()?.pageNumber.takeIf { documentNames.size == 1 },
+                    isOffline = true,
+                    confidence = 0.8f,
+                    isGroundedInMaterial = true,
+                    modelUsed = "offline-extractive-summary"
+                )
+            }
         }
 
         // 1. If an actual neural on-device model is installed and ready, execute inference
@@ -229,28 +253,25 @@ class LocalAIService(
             .take(count)
 
         sourceStatements.mapIndexed { index, (evidenceChunk, sourceStatement) ->
-            val snippet = sourceStatement.take(280).trim()
+            val statement = sourceStatement.take(280).trim()
             val seed = skill.id * 31L + count * 17L + evidenceChunk.id * 7L +
                 difficulty.hashCode() + index * 97L
-            val correctIndex = java.util.Random(seed).nextInt(4)
-
-            val options = mutableListOf(
-                "This detail is not stated in the retrieved passage.",
-                "This statement is unrelated to the retrieved topic.",
-                "This claim is not supported by the retrieved passage."
-            )
-            options.add(correctIndex, snippet)
+            val correctIndex = java.util.Random(seed).nextInt(2)
+            val yes = "Yes — this fact appears in your notes"
+            val no = "No — this fact is not stated in your notes"
+            val optionA = if (correctIndex == 0) yes else no
+            val optionB = if (correctIndex == 1) yes else no
 
             QuestionEntity(
                 courseId = skill.courseId,
                 skillId = skill.id,
-                questionText = "According to your notes about '${skill.name}', which statement is supported?",
-                optionA = options[0],
-                optionB = options[1],
-                optionC = options[2],
-                optionD = options[3],
+                questionText = "Your notes say: \"$statement\"\n\nIs this fact stated in the source?",
+                optionA = optionA,
+                optionB = optionB,
+                optionC = "",
+                optionD = "",
                 correctAnswerIndex = correctIndex,
-                explanation = "The supported statement is taken from page ${evidenceChunk.pageNumber} of ${evidenceChunk.sourceDocumentName}.",
+                explanation = "This sentence is quoted from page ${evidenceChunk.pageNumber} of ${evidenceChunk.sourceDocumentName}.",
                 difficulty = difficulty,
                 hint = "Review page ${evidenceChunk.pageNumber} in ${evidenceChunk.sourceDocumentName}.",
                 sourceDocumentName = evidenceChunk.sourceDocumentName,

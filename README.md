@@ -81,7 +81,7 @@ Personalized Next Step & Study Path
 | **Quiz Generation & Evaluation** | **Full** (Deterministic engine) | **Enhanced** (Dynamic generation) |
 | **Mastery & Prerequisite Tracking** | **Full** (Local database) | **Full** |
 | **Spaced Repetition (SM-2)** | **Full** (Local scheduler) | **Full** |
-| **Document-Grounded Tutoring** | **Full** (Grounded chunk extracts) | **Enhanced** (Gemini Socratic dialog) |
+| **Document-Grounded Tutoring** | **Full** (Grounded chunk extracts) | **Optional** (Firebase AI Logic + App Check configuration required) |
 | **On-Device Neural Model** | *Deferred / In Roadmap* | N/A |
 
 > **Note on Local Neural Model**: While BM25 search, document indexing, quiz evaluation, mastery tracking, and deterministic tutoring run 100% locally on-device, large-parameter neural LLM inference (e.g. MediaPipe / On-device SLMs) is architectural and planned for future iterations.
@@ -159,9 +159,6 @@ LearnMate replaces static flashcards with dynamic adaptation:
 git clone https://github.com/GoraniyaHarish/NEW-AI-TUTOR.git
 cd NEW-AI-TUTOR
 
-# Copy example environment configuration
-cp .env.example .env
-
 # Verify Gradle wrapper
 ./gradlew --version
 
@@ -173,6 +170,8 @@ cp .env.example .env
 ```
 
 The APK will be generated at `app/build/outputs/apk/debug/app-debug.apk`. Verify build and test results on the current checkout before reporting them as passing.
+
+Cloud AI requires a Firebase project configured for Firebase AI Logic and App Check, with its `google-services.json` in `app/`. Do not put a Gemini Developer API key in the Android app or its build configuration; Firebase AI Logic keeps that authorization on Google's service side.
 
 ---
 
@@ -193,7 +192,7 @@ NEW-AI-TUTOR/
 ├── gradle/               # Gradle wrapper and version catalog
 │   ├── libs.versions.toml
 │   └── wrapper/
-├── .env.example          # Environment variable template
+├── .env.example          # Security note; no credentials
 ├── .gitignore            # Git exclusion rules
 ├── build.gradle.kts      # Root build configuration
 ├── settings.gradle.kts   # Root settings configuration

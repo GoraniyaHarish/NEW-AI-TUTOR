@@ -3,6 +3,7 @@ package com.example.core.storage
 import android.content.Context
 import android.net.Uri
 import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.tom_roush.pdfbox.pdmodel.PDDocument
@@ -181,6 +182,13 @@ class PdfTextExtractor(private val context: Context) {
     fun extractTextFromUri(uri: Uri, fileName: String, explicitSizeBytes: Long? = null): IngestionResult {
         val extension = fileName.substringAfterLast('.', "").lowercase()
 
+        if (extension !in setOf("pdf", "txt", "text", "md", "csv")) {
+            return IngestionResult.Failure(
+                reason = "Unsupported file type for '$fileName'. Import a PDF, TXT, Markdown, or CSV file.",
+                isRecoverable = true
+            )
+        }
+
         // 1. Validate file size if known or check via openInputStream
         if (explicitSizeBytes != null && explicitSizeBytes > DocumentTextProcessor.MAX_FILE_SIZE_BYTES) {
             return IngestionResult.Failure(
@@ -205,13 +213,15 @@ class PdfTextExtractor(private val context: Context) {
         return when (extension) {
             "txt", "text", "md", "csv" -> extractFromPlainTextStream(inputStream)
             "pdf" -> extractFromPdfStream(inputStream, fileName)
-            else -> extractFromPlainTextStream(inputStream)
+            else -> error("File extension was validated above")
         }
     }
 
     fun extractFromPlainTextStream(inputStream: InputStream): IngestionResult {
         val content = try {
-            inputStream.bufferedReader().use { it.readText() }
+            readLimitedBytes(inputStream).toString(Charsets.UTF_8)
+        } catch (_: FileTooLargeException) {
+            return IngestionResult.Failure("Document exceeds the 50 MB limit.")
         } catch (e: Exception) {
             return IngestionResult.Failure("Failed to read text stream: ${e.localizedMessage ?: "I/O error"}")
         }
@@ -232,13 +242,11 @@ class PdfTextExtractor(private val context: Context) {
 
     fun extractFromPdfStream(inputStream: InputStream, fileName: String): IngestionResult {
         val bytes = try {
-            inputStream.use { it.readBytes() }
+            readLimitedBytes(inputStream)
+        } catch (_: FileTooLargeException) {
+            return IngestionResult.Failure("PDF '$fileName' exceeds the 50 MB limit.")
         } catch (e: Exception) {
             return IngestionResult.Failure("Failed to read PDF bytes: ${e.localizedMessage ?: "I/O error"}")
-        }
-
-        if (bytes.size > DocumentTextProcessor.MAX_FILE_SIZE_BYTES) {
-            return IngestionResult.Failure("PDF '$fileName' exceeds the 50 MB limit.")
         }
 
         if (bytes.isEmpty()) {
@@ -262,6 +270,32 @@ class PdfTextExtractor(private val context: Context) {
 
         val totalPages = extractedPages.maxOfOrNull { it.pageNumber } ?: validPages.size
         return IngestionResult.Success(chunks = chunks, pageCount = totalPages)
+    }
+
+    private class FileTooLargeException : Exception()
+
+    /** Read at most the supported limit plus one byte, including for providers with unknown size. */
+    private fun readLimitedBytes(inputStream: InputStream): ByteArray = inputStream.use { stream ->
+        val output = ByteArrayOutputStream()
+        val buffer = ByteArray(8 * 1024)
+        var totalBytes = 0L
+        while (true) {
+            val maxRead = minOf(buffer.size.toLong(), DocumentTextProcessor.MAX_FILE_SIZE_BYTES - totalBytes + 1).toInt()
+            val count = stream.read(buffer, 0, maxRead)
+            if (count < 0) break
+            if (count == 0) {
+                val nextByte = stream.read()
+                if (nextByte < 0) break
+                totalBytes++
+                if (totalBytes > DocumentTextProcessor.MAX_FILE_SIZE_BYTES) throw FileTooLargeException()
+                output.write(nextByte)
+                continue
+            }
+            totalBytes += count
+            if (totalBytes > DocumentTextProcessor.MAX_FILE_SIZE_BYTES) throw FileTooLargeException()
+            output.write(buffer, 0, count)
+        }
+        output.toByteArray()
     }
 
     /**

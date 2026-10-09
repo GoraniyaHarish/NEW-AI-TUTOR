@@ -116,6 +116,15 @@ object PersonalizationEngine {
             val mastery = learner?.masteryScore ?: 0
             val attempts = learner?.attempts ?: 0
             val isPrereqForCount = prereqCounts[skill.id] ?: 0
+            val daysSincePractice = learner?.lastPracticed?.takeIf { it > 0L }
+                ?.let { ((System.currentTimeMillis() - it).coerceAtLeast(0L) / MILLIS_PER_DAY).toInt() }
+            val reviewIntervalDays = when {
+                mastery < 50 -> 1
+                mastery < 75 -> 3
+                mastery < 90 -> 7
+                else -> 14
+            } * (1 + (learner?.streak ?: 0).coerceAtMost(3) / 2)
+            val reviewIsDue = attempts > 0 && daysSincePractice != null && daysSincePractice >= reviewIntervalDays
 
             // Priority score calculation: higher means more urgent
             var priorityWeight = 0
@@ -149,6 +158,10 @@ object PersonalizationEngine {
                         priorityWeight = 70 + (isPrereqForCount * 5)
                         reason = "Foundational topic ready to be learned. Diagnostic test recommended."
                     }
+                }
+                reviewIsDue -> {
+                    priorityWeight = 65 + (daysSincePractice!! - reviewIntervalDays).coerceAtMost(30)
+                    reason = "Spaced review is due: last practiced $daysSincePractice day(s) ago after reaching $mastery% mastery."
                 }
                 mastery in 50..74 -> {
                     priorityWeight = 40 + (75 - mastery)
@@ -200,6 +213,7 @@ object PersonalizationEngine {
         var order = 1
         for (rec in recommendations) {
             val isWeak = rec.currentMastery < 50
+            val isDueReview = rec.reason.startsWith("Spaced review is due")
             if (isWeak || rec.status == MasteryStatus.NOT_ASSESSED) {
                 items.add(
                     LearningPlanItemEntity(
@@ -213,17 +227,15 @@ object PersonalizationEngine {
                     )
                 )
             }
-            items.add(
-                LearningPlanItemEntity(
-                    planId = 0,
-                    courseId = courseId,
-                    skillId = rec.skill.id,
-                    title = "Practice Quiz: ${rec.skill.name}",
-                    reason = "Adaptive assessment to verify understanding and update mastery.",
-                    itemType = "QUIZ",
-                    orderIndex = order++
-                )
-            )
+            items.add(LearningPlanItemEntity(
+                planId = 0,
+                courseId = courseId,
+                skillId = rec.skill.id,
+                title = if (isDueReview) "Spaced Review: ${rec.skill.name}" else "Practice Quiz: ${rec.skill.name}",
+                reason = if (isDueReview) rec.reason else "Practice from the course material to check understanding and update mastery.",
+                itemType = if (isDueReview) "REVIEW" else "QUIZ",
+                orderIndex = order++
+            ))
         }
 
         if (items.isEmpty() && skills.isNotEmpty()) {
@@ -243,4 +255,6 @@ object PersonalizationEngine {
 
         return plan to items
     }
+
+    private const val MILLIS_PER_DAY = 24L * 60L * 60L * 1000L
 }

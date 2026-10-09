@@ -101,9 +101,9 @@ For every meaningful feature:
 
 1. **No Committed or Hardcoded Secrets**:
    * Never commit API keys, tokens, or credentials into source code, comments, or Gradle files.
-   * Use `.env` with the Gradle Secrets plugin; access credentials via `BuildConfig`.
-2. **No Credentials in URLs**:
-   * Always pass API keys in authorization or custom HTTP headers (e.g. `x-goog-api-key`), never in URL query strings.
+   * Never embed Gemini Developer API keys in the Android client or BuildConfig. Use Firebase AI Logic with App Check or a secured server proxy.
+2. **No Client-Side Gemini API Keys**:
+   * Do not put Gemini Developer API keys in the app, even in headers. Use Firebase AI Logic with App Check or a secured server proxy.
 3. **Storage & File Security**:
    * Sanitize user file names against directory traversal (`../`).
    * Store student materials in app-internal private storage (`context.filesDir`).

@@ -47,6 +47,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -70,8 +71,8 @@ fun CreateCourseScreen(
     onCourseCreated: (Long) -> Unit
 ) {
     val context = LocalContext.current
-    var courseName by remember { mutableStateOf("") }
-    var courseDescription by remember { mutableStateOf("") }
+    var courseName by rememberSaveable { mutableStateOf("") }
+    var courseDescription by rememberSaveable { mutableStateOf("") }
 
     val files = remember {
         mutableStateListOf<SelectedFileItem>()
@@ -236,32 +237,40 @@ fun CreateCourseScreen(
                         }
                     }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Uploaded Material (${files.size})",
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-
-                        Row {
-                            TextButton(
-                                onClick = { showTextInputDialog = true },
-                                modifier = Modifier.testTag("paste_notes_button")
-                            ) {
-                                Text("+ Text / Notes")
+                    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+                        if (maxWidth < 360.dp) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    text = "Uploaded materials · ${files.size}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onBackground
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    TextButton(onClick = { showTextInputDialog = true }, modifier = Modifier.weight(1f).testTag("paste_notes_button")) {
+                                        Text("Add notes")
+                                    }
+                                    TextButton(onClick = { filePickerLauncher.launch("*/*") }, modifier = Modifier.weight(1f).testTag("upload_file_button")) {
+                                        Icon(imageVector = Icons.Default.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Upload file")
+                                    }
+                                }
                             }
-                            TextButton(
-                                onClick = { filePickerLauncher.launch("*/*") },
-                                modifier = Modifier.testTag("upload_file_button")
+                        } else {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(imageVector = Icons.Default.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Pick File")
+                                Text("Uploaded materials · ${files.size}", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onBackground)
+                                Row {
+                                    TextButton(onClick = { showTextInputDialog = true }, modifier = Modifier.testTag("paste_notes_button")) { Text("Add notes") }
+                                    TextButton(onClick = { filePickerLauncher.launch("*/*") }, modifier = Modifier.testTag("upload_file_button")) {
+                                        Icon(imageVector = Icons.Default.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Upload file")
+                                    }
+                                }
                             }
                         }
                     }
@@ -368,6 +377,7 @@ fun CreateCourseScreen(
                                 title = courseName,
                                 description = courseDescription,
                                 files = files,
+                                onFailure = { message -> validationErrorMessage = message },
                                 onCreated = { newCourseId ->
                                     onCourseCreated(newCourseId)
                                 }

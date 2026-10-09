@@ -1,6 +1,11 @@
 package com.example.ui.navigation
 
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -14,6 +19,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.testTag
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -68,9 +74,10 @@ fun AppNavGraph(
         modifier = Modifier.fillMaxSize(),
         bottomBar = {
             if (isBottomNavVisible) {
-                NavigationBar(
-                    modifier = Modifier.testTag("bottom_nav_bar")
-                ) {
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                  NavigationBar(
+                    modifier = Modifier.widthIn(max = 720.dp).fillMaxWidth().testTag("bottom_nav_bar")
+                  ) {
                     bottomNavItems.forEach { item ->
                         val selected = currentRoute == item.route
                         NavigationBarItem(
@@ -89,15 +96,21 @@ fun AppNavGraph(
                             modifier = Modifier.testTag("nav_item_${item.route}")
                         )
                     }
+                  }
                 }
             }
         }
     ) { innerPadding ->
-        NavHost(
+        androidx.compose.foundation.layout.BoxWithConstraints(
+            modifier = Modifier.fillMaxSize().padding(innerPadding),
+            contentAlignment = Alignment.TopCenter
+        ) {
+          val contentMaxWidth = if (maxWidth >= 840.dp) 760.dp else 920.dp
+          NavHost(
             navController = navController,
             startDestination = Screen.Splash.route,
-            modifier = Modifier.padding(innerPadding)
-        ) {
+            modifier = Modifier.widthIn(max = contentMaxWidth).fillMaxWidth().fillMaxHeight()
+          ) {
             composable(Screen.Splash.route) {
                 SplashScreen(
                     onNavigateNext = {
@@ -117,15 +130,6 @@ fun AppNavGraph(
                         navController.navigate(Screen.CreateCourse.route) {
                             popUpTo(Screen.Onboarding.route) { inclusive = true }
                         }
-                    },
-                    onSkipToDemo = {
-                        viewModel.setOnboardingCompleted(true)
-                        viewModel.resetToDemoCourse { newId ->
-                            viewModel.selectCourse(newId)
-                            navController.navigate(Screen.Home.route) {
-                                popUpTo(Screen.Onboarding.route) { inclusive = true }
-                            }
-                        }
                     }
                 )
             }
@@ -135,6 +139,7 @@ fun AppNavGraph(
                 HomeScreen(
                     viewModel = viewModel,
                     onNavigateToLearn = { navController.navigate(Screen.Learn.route) },
+                    onNavigateToCreateCourse = { navController.navigate(Screen.CreateCourse.route) },
                     onNavigateToSkillMap = {
                         val cId = viewModel.activeCourseId.value ?: 1L
                         navController.navigate(Screen.SkillMap.createRoute(cId))
@@ -383,14 +388,10 @@ fun AppNavGraph(
                     viewModel = viewModel,
                     currentThemeMode = currentThemeMode,
                     onThemeModeChange = onThemeModeChange,
-                    onNavigateBack = { navController.popBackStack() },
-                    onDemoReloaded = {
-                        navController.navigate(Screen.Home.route) {
-                            popUpTo(Screen.Home.route) { inclusive = true }
-                        }
-                    }
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
         }
-    }
+          }
+        }
 }

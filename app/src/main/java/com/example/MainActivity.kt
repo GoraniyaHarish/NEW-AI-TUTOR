@@ -5,10 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.core.util.AppThemeMode
 import com.example.ui.navigation.AppNavGraph
@@ -20,7 +18,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            var themeMode by rememberSaveable { mutableStateOf(AppThemeMode.SYSTEM) }
+            val viewModel: MainViewModel = viewModel()
+            val themeMode by viewModel.themeMode.collectAsState()
             val systemDark = isSystemInDarkTheme()
             val isDark = when (themeMode) {
                 AppThemeMode.SYSTEM -> systemDark
@@ -29,11 +28,10 @@ class MainActivity : ComponentActivity() {
             }
 
             LearnMateTheme(darkTheme = isDark) {
-                val viewModel: MainViewModel = viewModel()
                 AppNavGraph(
                     viewModel = viewModel,
                     currentThemeMode = themeMode,
-                    onThemeModeChange = { newMode -> themeMode = newMode }
+                    onThemeModeChange = viewModel::setThemeMode
                 )
             }
         }

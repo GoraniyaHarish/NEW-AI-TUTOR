@@ -186,26 +186,29 @@ fun LearnScreen(
 
                             Spacer(modifier = Modifier.height(14.dp))
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Button(
-                                    onClick = { onNavigateToLesson(topRec.skill.id) },
-                                    modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(10.dp)
-                                ) {
-                                    Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Study Lesson")
-                                }
-
-                                OutlinedButton(
-                                    onClick = { onNavigateToQuiz(topRec.skill.id) },
-                                    modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(10.dp)
-                                ) {
-                                    Text("Practice Quiz")
+                            androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+                                if (maxWidth < 360.dp) {
+                                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Button(onClick = { onNavigateToLesson(topRec.skill.id) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp)) {
+                                            Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text("Study lesson")
+                                        }
+                                        OutlinedButton(onClick = { onNavigateToQuiz(topRec.skill.id) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp)) {
+                                            Text("Practice quiz")
+                                        }
+                                    }
+                                } else {
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Button(onClick = { onNavigateToLesson(topRec.skill.id) }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(10.dp)) {
+                                            Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text("Study lesson")
+                                        }
+                                        OutlinedButton(onClick = { onNavigateToQuiz(topRec.skill.id) }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(10.dp)) {
+                                            Text("Practice quiz")
+                                        }
+                                    }
                                 }
                             }
                         }

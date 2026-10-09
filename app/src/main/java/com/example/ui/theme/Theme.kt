@@ -12,37 +12,37 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Color(0xFF60A5FA),
-    onPrimary = Color(0xFF0F172A),
-    primaryContainer = Color(0xFF1E3A8A),
-    onPrimaryContainer = Color(0xFFDBEAFE),
+    primary = Color(0xFF9AC7AE),
+    onPrimary = Color(0xFF17372C),
+    primaryContainer = Color(0xFF315C49),
+    onPrimaryContainer = Color(0xFFE3F2E7),
     secondary = BrandCyan,
     onSecondary = Color(0xFF0F172A),
     tertiary = BrandViolet,
-    background = Slate950,
-    surface = Slate900,
-    surfaceVariant = Slate800,
-    onBackground = Slate50,
-    onSurface = Slate50,
-    onSurfaceVariant = Slate300,
-    outline = Slate700
+    background = Color(0xFF171F1B),
+    surface = Color(0xFF202A24),
+    surfaceVariant = Color(0xFF2B3830),
+    onBackground = Color(0xFFE9EAE2),
+    onSurface = Color(0xFFE9EAE2),
+    onSurfaceVariant = Color(0xFFBEC8BD),
+    outline = Color(0xFF59675D)
 )
 
 private val LightColorScheme = lightColorScheme(
     primary = BrandBluePrimary,
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFDBEAFE),
-    onPrimaryContainer = Color(0xFF1E3A8A),
+    primaryContainer = Color(0xFFDCE9DE),
+    onPrimaryContainer = Color(0xFF1B4938),
     secondary = BrandCyan,
     onSecondary = Color.White,
     tertiary = BrandViolet,
     background = Slate50,
-    surface = Color.White,
-    surfaceVariant = Slate100,
-    onBackground = Slate900,
-    onSurface = Slate900,
+    surface = Color(0xFFFFFEFA),
+    surfaceVariant = Color(0xFFECEDE5),
+    onBackground = Color(0xFF27372F),
+    onSurface = Color(0xFF27372F),
     onSurfaceVariant = Slate600,
-    outline = Slate200
+    outline = Color(0xFFD6D9CF)
 )
 
 @Composable

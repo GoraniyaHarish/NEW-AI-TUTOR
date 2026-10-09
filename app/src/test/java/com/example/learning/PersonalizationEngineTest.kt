@@ -62,4 +62,21 @@ class PersonalizationEngineTest {
         assertTrue(items.any { it.itemType == "LESSON" })
         assertTrue(items.any { it.itemType == "QUIZ" })
     }
+
+    @Test
+    fun `daily plan schedules an evidence based spaced review when practice is overdue`() {
+        val skill = SkillEntity(id = 8, courseId = 2, name = "Cell division", description = "", chapter = "Biology")
+        val learner = LearnerSkillEntity(
+            skillId = skill.id,
+            courseId = 2,
+            masteryScore = 92,
+            attempts = 4,
+            lastPracticed = System.currentTimeMillis() - 30L * 24L * 60L * 60L * 1000L
+        )
+
+        val (_, items) = PersonalizationEngine.buildDailyLearningPlan(2, listOf(skill), emptyList(), listOf(learner))
+
+        assertTrue(items.any { it.itemType == "REVIEW" && it.title.contains("Cell division") })
+        assertTrue(items.any { it.reason.contains("last practiced") })
+    }
 }

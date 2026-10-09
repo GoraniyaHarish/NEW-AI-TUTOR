@@ -3,10 +3,12 @@ package com.example.ui
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.example.ai.local.ModelDownloadState
+import com.example.core.util.AppThemeMode
 import com.example.ui.viewmodel.MainViewModel
 import com.example.ui.viewmodel.SelectedFileItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -58,19 +60,11 @@ class MainViewModelTest {
     }
 
     @Test
-    fun `fresh installation starts without demo course and demo loading is explicit`() = runTest(testDispatcher) {
+    fun `fresh installation starts without seeded sample data`() = runTest(testDispatcher) {
         viewModel.repository.ensureInitialData()
         val activeCourseId = viewModel.activeCourseId.value
-        // Fresh production install must start empty
-        org.junit.Assert.assertNull("Fresh install must not automatically seed demo course", activeCourseId)
-
-        // Explicit demo load must work on demand
-        val loadedDemoId = viewModel.repository.resetToDemoCourse()
-        viewModel.selectCourse(loadedDemoId)
-        val course = viewModel.repository.getCourse(loadedDemoId)
-        assertNotNull(course)
-        assertEquals("Physics", course?.title)
-        assertTrue(course?.isDemo == true)
+        assertEquals(null, activeCourseId)
+        assertTrue(viewModel.allCourses.value.isEmpty())
     }
 
     @Test
@@ -83,6 +77,14 @@ class MainViewModelTest {
 
         viewModel.toggleOfflineSimulation()
         assertEquals(initialOffline, viewModel.isSimulatedOffline.value)
+    }
+
+    @Test
+    fun `theme choice is restored after view model recreation`() = runTest(testDispatcher) {
+        viewModel.setThemeMode(AppThemeMode.DARK)
+        val recreated = MainViewModel(application)
+        assertEquals(AppThemeMode.DARK, recreated.themeMode.value)
+        viewModel.setThemeMode(AppThemeMode.SYSTEM)
     }
 
     @Test
@@ -117,6 +119,26 @@ class MainViewModelTest {
         advanceUntilIdle()
         viewModel.selectCourse(999L)
         assertEquals(999L, viewModel.activeCourseId.value)
+    }
+
+    @Test
+    fun `course creation reports empty imported material without creating a course`() = runTest(testDispatcher) {
+        advanceUntilIdle()
+        var failure: String? = null
+        var created = false
+
+        viewModel.createCourseWithFiles(
+            title = "Empty course",
+            description = "",
+            files = listOf(SelectedFileItem("empty.txt", "TXT", "0 KB", customText = "   ")),
+            onFailure = { failure = it },
+            onCreated = { created = true }
+        )
+        advanceUntilIdle()
+
+        assertFalse(created)
+        assertTrue(failure?.contains("empty", ignoreCase = true) == true)
+        assertTrue(viewModel.repository.getAllCourses().first().isEmpty())
     }
 
     @Test

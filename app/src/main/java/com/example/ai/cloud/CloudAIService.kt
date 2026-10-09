@@ -1,31 +1,26 @@
 package com.example.ai.cloud
 
-import com.example.BuildConfig
+import android.content.Context
+import com.google.firebase.FirebaseApp
+import com.google.firebase.ai.FirebaseAI
+import com.google.firebase.ai.type.GenerativeBackend
 import com.example.ai.AIService
 import com.example.ai.LessonExplanation
 import com.example.ai.TutorResponse
 import com.example.ai.grounding.GroundingProvenanceValidator
+import com.example.ai.nlp.QueryUnderstanding
+import com.example.ai.nlp.TutorIntent
+import com.example.ai.summarization.DocumentSummaryBuilder
 import com.example.data.local.entity.ChatMessageEntity
 import com.example.data.local.entity.DocumentChunkEntity
 import com.example.data.local.entity.QuestionEntity
 import com.example.data.local.entity.SkillEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
-import java.util.concurrent.TimeUnit
 
-open class CloudAIService : AIService {
-
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(20, TimeUnit.SECONDS)
-        .readTimeout(25, TimeUnit.SECONDS)
-        .writeTimeout(20, TimeUnit.SECONDS)
-        .build()
+open class CloudAIService(private val context: Context? = null) : AIService {
 
     // Officially supported production Gemini models from Google AI Gemini specifications
     // Primary: gemini-3.5-flash-lite (fast, low latency)
@@ -35,16 +30,13 @@ open class CloudAIService : AIService {
         "gemini-3.5-flash"
     )
 
-    private val apiKey: String
-        get() = try {
-            BuildConfig.GEMINI_API_KEY
-        } catch (_: Exception) {
-            ""
-        }
-
     open fun isConfigured(): Boolean {
-        val key = apiKey
-        return key.isNotBlank() && key != "MY_GEMINI_API_KEY"
+        val appContext = context ?: return false
+        return try {
+            FirebaseApp.getApps(appContext).isNotEmpty()
+        } catch (_: Exception) {
+            false
+        }
     }
 
     override suspend fun answerTutor(
@@ -62,14 +54,24 @@ open class CloudAIService : AIService {
         conversationHistory: List<ChatMessageEntity>
     ): TutorResponse = withContext(Dispatchers.IO) {
         if (!isConfigured()) {
-            throw IllegalStateException("Cloud AI API key is not configured.")
+            throw IllegalStateException("Firebase AI Logic is not configured for this app.")
         }
 
         val topChunk = relevantChunks.firstOrNull()
         val hasEvidence = relevantChunks.isNotEmpty() && topChunk != null && topChunk.text.isNotBlank()
+        val analyzedQuery = QueryUnderstanding.analyze(query, skill?.name)
+        if ((analyzedQuery.intent == TutorIntent.SUMMARY || analyzedQuery.intent == TutorIntent.REVISE) && !hasEvidence) {
+            throw IllegalStateException("No readable uploaded material is available to summarize for this course.")
+        }
+
+        val summaryContext = if (analyzedQuery.intent == TutorIntent.SUMMARY || analyzedQuery.intent == TutorIntent.REVISE) {
+            DocumentSummaryBuilder.selectContext(relevantChunks)
+        } else {
+            DocumentSummaryBuilder.ContextSelection(relevantChunks, true, relevantChunks.sumOf { it.text.length })
+        }
 
         val contextText = if (hasEvidence) {
-            relevantChunks.joinToString("\n\n---\n\n") { chunk ->
+            summaryContext.chunks.joinToString("\n\n---\n\n") { chunk ->
                 "[Document: ${chunk.sourceDocumentName}, Page: ${chunk.pageNumber}]\n${chunk.text}"
             }
         } else {
@@ -85,13 +87,23 @@ open class CloudAIService : AIService {
             append("   \"This topic wasn't found in your uploaded materials. Based on general knowledge...\"\n")
             append("3. Teach clearly: explain the core concept, use a simple analogy if helpful, and ask a gentle follow-up check question.\n")
             append("4. NEVER invent documents, authors, or page numbers that are not in the context.\n")
+            if (analyzedQuery.intent == TutorIntent.SUMMARY || analyzedQuery.intent == TutorIntent.REVISE) {
+                append("5. Summarize the uploaded source passages themselves. Do not say the student has not uploaded a document when source context is present.\n")
+                if (!summaryContext.isComplete) {
+                    append("6. The provided passages are a sample spread across the course material because the full source exceeds the context budget. State that the summary covers selected passages, not the entire document.\n")
+                }
+            }
         }
 
         // Construct contents payload including recent conversation turns
         val contentsArray = JSONArray()
 
         // Include last 4 relevant turns of history
-        val recentHistory = conversationHistory.takeLast(4)
+        val recentHistory = if (analyzedQuery.intent == TutorIntent.SUMMARY || analyzedQuery.intent == TutorIntent.REVISE) {
+            emptyList()
+        } else {
+            conversationHistory.takeLast(4)
+        }
         for (msg in recentHistory) {
             val role = if (msg.role == "user") "user" else "model"
             val turnObj = JSONObject().apply {
@@ -148,7 +160,7 @@ open class CloudAIService : AIService {
         relevantChunks: List<DocumentChunkEntity>
     ): LessonExplanation = withContext(Dispatchers.IO) {
         if (!isConfigured()) {
-            throw IllegalStateException("Cloud AI API key is not configured.")
+            throw IllegalStateException("Firebase AI Logic is not configured for this app.")
         }
 
         val topChunk = relevantChunks.firstOrNull()
@@ -261,17 +273,26 @@ open class CloudAIService : AIService {
             for (i in 0 until array.length()) {
                 val obj = array.getJSONObject(i)
                 val opts = obj.getJSONArray("options")
+                val options = (0 until opts.length()).map { opts.optString(it).trim() }
+                val correctIndex = obj.optInt("correctIndex", -1)
+                val questionText = obj.optString("question").trim()
+                val explanation = obj.optString("explanation").trim()
+                if (options.size != 4 || options.any(String::isBlank) || options.distinct().size != 4 ||
+                    correctIndex !in 0..3 || questionText.isBlank() || explanation.isBlank()
+                ) {
+                    return@withContext emptyList()
+                }
                 list.add(
                     QuestionEntity(
                         courseId = skill.courseId,
                         skillId = skill.id,
-                        questionText = obj.getString("question"),
-                        optionA = opts.optString(0, "A"),
-                        optionB = opts.optString(1, "B"),
-                        optionC = opts.optString(2, "C"),
-                        optionD = opts.optString(3, "D"),
-                        correctAnswerIndex = obj.getInt("correctIndex").coerceIn(0, 3),
-                        explanation = obj.getString("explanation"),
+                        questionText = questionText,
+                        optionA = options[0],
+                        optionB = options[1],
+                        optionC = options[2],
+                        optionD = options[3],
+                        correctAnswerIndex = correctIndex,
+                        explanation = explanation,
                         difficulty = difficulty,
                         hint = obj.optString("hint", "Review page ${topChunk.pageNumber}"),
                         sourceDocumentName = topChunk.sourceDocumentName,
@@ -285,12 +306,12 @@ open class CloudAIService : AIService {
         }
     }
 
-    private fun executeGeminiRequest(payload: JSONObject): Pair<String, String> {
+    private suspend fun executeGeminiRequest(payload: JSONObject): Pair<String, String> {
         var lastException: Exception? = null
 
         for (model in candidateModels) {
             try {
-                val text = callModelEndpoint(model, payload)
+                val text = callFirebaseAI(model, payload)
                 return Pair(text, model)
             } catch (e: Exception) {
                 lastException = e
@@ -299,29 +320,25 @@ open class CloudAIService : AIService {
         throw lastException ?: Exception("Failed to execute Gemini request across candidate models.")
     }
 
-    private fun callModelEndpoint(modelName: String, payload: JSONObject): String {
-        // SECURE: Send API key strictly in the 'x-goog-api-key' HTTP header, NEVER in URL query params
-        val url = "https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent"
-
-        val request = Request.Builder()
-            .url(url)
-            .addHeader("x-goog-api-key", apiKey)
-            .addHeader("Content-Type", "application/json")
-            .post(payload.toString().toRequestBody("application/json".toMediaType()))
-            .build()
-
-        val response = client.newCall(request).execute()
-        if (!response.isSuccessful) {
-            throw Exception("Gemini API error ($modelName) HTTP ${response.code}: ${response.message}")
+    private suspend fun callFirebaseAI(modelName: String, payload: JSONObject): String {
+        if (!isConfigured()) throw IllegalStateException("Firebase AI Logic is not configured for this app.")
+        val systemText = payload.optJSONObject("systemInstruction")
+            ?.optJSONArray("parts")
+            ?.optJSONObject(0)
+            ?.optString("text")
+            .orEmpty()
+        val contents = payload.optJSONArray("contents") ?: JSONArray()
+        val prompt = buildString {
+            if (systemText.isNotBlank()) append("SYSTEM INSTRUCTIONS:\n$systemText\n\n")
+            for (index in 0 until contents.length()) {
+                val turn = contents.optJSONObject(index) ?: continue
+                val role = if (turn.optString("role") == "model") "TUTOR" else "STUDENT"
+                val text = turn.optJSONArray("parts")?.optJSONObject(0)?.optString("text").orEmpty()
+                if (text.isNotBlank()) append("$role:\n$text\n\n")
+            }
         }
-
-        val body = response.body?.string() ?: throw Exception("Empty response body from Gemini API")
-        val json = JSONObject(body)
-        return json.getJSONArray("candidates")
-            .getJSONObject(0)
-            .getJSONObject("content")
-            .getJSONArray("parts")
-            .getJSONObject(0)
-            .getString("text")
+        val model = FirebaseAI.getInstance(backend = GenerativeBackend.googleAI()).generativeModel(modelName)
+        return model.generateContent(prompt).text
+            ?: throw IllegalStateException("Firebase AI Logic returned an empty response.")
     }
 }

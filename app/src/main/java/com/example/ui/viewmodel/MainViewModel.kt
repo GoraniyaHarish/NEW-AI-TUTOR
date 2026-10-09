@@ -15,6 +15,7 @@ import com.example.core.storage.ExtractedChunk
 import com.example.core.storage.ExtractedPage
 import com.example.core.storage.IngestionResult
 import com.example.core.storage.PdfTextExtractor
+import com.example.core.util.AppThemeMode
 import com.example.data.local.database.LearnMateDatabase
 import com.example.data.local.entity.ChatMessageEntity
 import com.example.data.local.entity.CourseEntity
@@ -32,7 +33,7 @@ import com.example.learning.assessment.QuizEvaluationResult
 import com.example.learning.mastery.MasteryCalculator
 import com.example.learning.personalization.LearningDiagnostics
 import com.example.learning.personalization.PersonalizationEngine
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -40,8 +41,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class SelectedFileItem(
     val name: String,
@@ -57,6 +60,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val database = LearnMateDatabase.getInstance(application)
     private val sharedPrefs = application.getSharedPreferences("learnmate_prefs", Context.MODE_PRIVATE)
 
+    private val _themeMode = MutableStateFlow(
+        sharedPrefs.getString("theme_mode", AppThemeMode.SYSTEM.name)
+            ?.let { runCatching { AppThemeMode.valueOf(it) }.getOrNull() }
+            ?: AppThemeMode.SYSTEM
+    )
+    val themeMode: StateFlow<AppThemeMode> = _themeMode.asStateFlow()
+
+    fun setThemeMode(mode: AppThemeMode) {
+        sharedPrefs.edit().putString("theme_mode", mode.name).apply()
+        _themeMode.value = mode
+    }
+
     private val _isOnboardingCompleted = MutableStateFlow(sharedPrefs.getBoolean("onboarding_completed", false))
     val isOnboardingCompleted: StateFlow<Boolean> = _isOnboardingCompleted.asStateFlow()
 
@@ -68,7 +83,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val networkMonitor = NetworkMonitor(application)
     val modelManager = com.example.ai.local.OnDeviceModelManager(application)
     private val localAI = LocalAIService(com.example.ai.local.DynamicLocalModelEngine(modelManager))
-    private val cloudAI = CloudAIService()
+    private val cloudAI = CloudAIService(application)
     private val aiRouter = AIRouter(localAI, cloudAI, networkMonitor)
     private val retriever = LocalRetriever()
     val repository = LearnMateRepository(database, aiRouter, retriever)
@@ -79,6 +94,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val isOnline: StateFlow<Boolean> = networkMonitor.isOnline
     val isSimulatedOffline: StateFlow<Boolean> = networkMonitor.isOfflineSimulated
+    val isCloudAIAvailable: StateFlow<Boolean> = networkMonitor.isOnline
+        .map { online -> online && cloudAI.isConfigured() }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            networkMonitor.isOnline.value && cloudAI.isConfigured()
+        )
 
     val allCourses: StateFlow<List<CourseEntity>> = repository.getAllCourses()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -164,47 +186,65 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         networkMonitor.toggleOfflineSimulation()
     }
 
-    fun resetToDemoCourse(onFinished: (Long) -> Unit) {
-        viewModelScope.launch {
-            val id = repository.resetToDemoCourse()
-            onFinished(id)
-        }
-    }
-
     fun createCourseWithFiles(
         title: String,
         description: String,
         files: List<SelectedFileItem>,
+        onFailure: (String) -> Unit = {},
         onCreated: (Long) -> Unit
     ) {
         viewModelScope.launch {
-            val courseId = repository.createCourse(title, description)
+            val emptyTextFiles = files.filter { it.customText != null && it.customText.isBlank() }
+            if (emptyTextFiles.isNotEmpty()) {
+                onFailure(emptyTextFiles.joinToString("\n") { "${it.name}: Document is empty and contains no readable text." })
+                return@launch
+            }
+            val ingestedFiles = mutableListOf<Triple<SelectedFileItem, List<ExtractedChunk>, Int>>()
+            val failures = mutableListOf<String>()
+            withContext(Dispatchers.IO) {
+                for (file in files) {
+                    var extractedChunks: List<ExtractedChunk> = emptyList()
+                    var pageCount = 1
 
-            for (file in files) {
-                var extractedChunks: List<ExtractedChunk> = emptyList()
-                var pageCount = 1
-
-                when {
-                    file.uri != null -> {
-                        when (val result = pdfExtractor.extractTextFromUri(file.uri, file.name)) {
-                            is IngestionResult.Success -> {
-                                extractedChunks = result.chunks
-                                pageCount = result.pageCount
+                    when {
+                        file.uri != null -> {
+                            when (val result = pdfExtractor.extractTextFromUri(file.uri, file.name)) {
+                                is IngestionResult.Success -> {
+                                    extractedChunks = result.chunks
+                                    pageCount = result.pageCount
+                                }
+                                is IngestionResult.Failure -> {
+                                    failures += "${file.name}: ${result.reason}"
+                                }
                             }
-                            is IngestionResult.Failure -> {
-                                extractedChunks = emptyList()
+                        }
+                        file.customText != null -> {
+                            val normalized = DocumentTextProcessor.normalizeText(file.customText)
+                            if (normalized.isNotBlank()) {
+                                extractedChunks = DocumentTextProcessor.chunkPages(listOf(ExtractedPage(pageNumber = 1, text = normalized)))
                                 pageCount = 1
+                            } else {
+                                failures += "${file.name}: Document is empty and contains no readable text."
                             }
+                        }
+                        else -> {
+                            failures += "${file.name}: No readable file content was provided."
                         }
                     }
-                    file.customText != null -> {
-                        val normalized = DocumentTextProcessor.normalizeText(file.customText)
-                        if (normalized.isNotBlank()) {
-                            extractedChunks = DocumentTextProcessor.chunkPages(listOf(ExtractedPage(pageNumber = 1, text = normalized)))
-                            pageCount = 1
-                        }
+
+                    if (extractedChunks.isNotEmpty()) {
+                        ingestedFiles += Triple(file, extractedChunks, pageCount)
                     }
                 }
+            }
+
+            if (failures.isNotEmpty()) {
+                onFailure(failures.joinToString("\n"))
+                return@launch
+            }
+
+            val courseId = repository.createCourse(title, description)
+            for ((file, extractedChunks, pageCount) in ingestedFiles) {
 
                 repository.addDocument(
                     courseId = courseId,

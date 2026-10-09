@@ -249,7 +249,7 @@ fun ProfileScreen(
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    text = "Dark mode, offline simulation & demo data",
+                                    text = "Theme, offline mode, and local app settings",
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )

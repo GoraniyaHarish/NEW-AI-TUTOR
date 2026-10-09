@@ -3,6 +3,8 @@ package com.example.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,23 +16,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.School
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.PictureAsPdf
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -42,27 +40,21 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.example.learning.mastery.MasteryStatus
-import com.example.ui.components.MasteryBadge
-import com.example.ui.components.MasteryProgressBar
-import com.example.ui.components.NetworkStatusIndicator
-import com.example.ui.theme.BrandBluePrimary
-import com.example.ui.theme.BrandCyan
-import com.example.ui.theme.BrandEmerald
-import com.example.ui.theme.MasteryNeedsAttention
-import com.example.ui.theme.MasteryStrong
+import com.example.data.local.entity.SkillEntity
 import com.example.ui.viewmodel.MainViewModel
 import java.util.Calendar
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HomeScreen(
     viewModel: MainViewModel,
     onNavigateToLearn: () -> Unit,
+    onNavigateToCreateCourse: () -> Unit,
     onNavigateToSkillMap: () -> Unit,
     onNavigateToDiagnostic: () -> Unit,
     onNavigateToLesson: (Long) -> Unit,
@@ -71,402 +63,120 @@ fun HomeScreen(
     val activeCourse by viewModel.activeCourse.collectAsState()
     val isOnline by viewModel.isOnline.collectAsState()
     val isSimulatedOffline by viewModel.isSimulatedOffline.collectAsState()
+    val cloudConfigured by viewModel.isCloudAIAvailable.collectAsState()
     val diagnostics by viewModel.diagnostics.collectAsState()
     val planItems by viewModel.planItems.collectAsState()
     val skills by viewModel.skills.collectAsState()
+    val learnerSkills by viewModel.learnerSkills.collectAsState()
     val documents by viewModel.documents.collectAsState()
-
-    val greeting = rememberGreeting()
+    val assessed = learnerSkills.filter { it.attempts > 0 }
+    val mastery = assessed.takeIf { it.isNotEmpty() }?.map { it.masteryScore }?.average()?.toInt()
+    val greeting = when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
+        in 0..11 -> "Good morning"
+        in 12..16 -> "Good afternoon"
+        else -> "Good evening"
+    }
 
     LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = 16.dp)
-            .testTag("home_screen"),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).testTag("home_screen"),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 22.dp, vertical = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         item {
-            Spacer(modifier = Modifier.height(8.dp))
-            // Header Bar with Greeting and Network Status
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                 Column {
-                    Text(
-                        text = greeting,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "LearnMate",
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
+                    Text(greeting, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Make today count.", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onBackground)
                 }
-
-                NetworkStatusIndicator(
-                    isOnline = isOnline,
-                    isSimulatedOffline = isSimulatedOffline,
-                    onToggleSimulation = { viewModel.toggleOfflineSimulation() }
-                )
+                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer) {
+                    Icon(Icons.Default.AutoAwesome, contentDescription = "LearnMate", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(13.dp).size(25.dp))
+                }
             }
         }
 
-        // Offline mode alert / banner
         item {
             Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                color = if (isOnline) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                        else Color(0xFFFEF3C7)
+                modifier = Modifier.fillMaxWidth().clickable { viewModel.toggleOfflineSimulation() },
+                shape = RoundedCornerShape(15.dp),
+                color = if (isOnline) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant
             ) {
-                Row(
-                    modifier = Modifier.padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = if (isOnline) Icons.Default.AutoAwesome else Icons.Default.Bolt,
-                        contentDescription = null,
-                        tint = if (isOnline) MaterialTheme.colorScheme.primary else Color(0xFFB45309),
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
+                Row(Modifier.padding(horizontal = 15.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(9.dp).clip(CircleShape).background(if (isOnline) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant))
+                    Spacer(Modifier.width(10.dp))
                     Text(
-                        text = if (isOnline) "Online — enhanced Gemini AI available."
-                               else "Offline mode — LearnMate is using your on-device knowledge.",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = if (isOnline) MaterialTheme.colorScheme.onPrimaryContainer else Color(0xFF92400E)
+                        text = when {
+                            isSimulatedOffline -> "Offline preview is on · tap here to restore your network view"
+                            cloudConfigured -> "Internet connected · Gemini configured; a successful reply confirms access"
+                            isOnline -> "Internet connected · LearnMate is ready in offline tutor mode"
+                            else -> "Offline · your saved notes and learning tools remain available"
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
         }
 
-        // Active Course & Overall Mastery Card or Empty Course Prompt
         item {
-            val currentCourse = activeCourse
-            if (currentCourse == null) {
+            val course = activeCourse
+            if (course == null) {
                 Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("empty_course_card"),
-                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth().testTag("empty_course_card"),
+                    shape = RoundedCornerShape(28.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(20.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.School,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(40.dp)
-                        )
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Text(
-                            text = "No Active Course",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = "Import your lecture notes, PDFs, or syllabus to start learning, or load a sample course to explore.",
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Button(
-                                onClick = onNavigateToLearn,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(44.dp)
-                                    .testTag("create_first_course_button"),
-                                shape = RoundedCornerShape(10.dp)
-                            ) {
-                                Text("Create Course", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                            }
-                            OutlinedButton(
-                                onClick = {
-                                    viewModel.resetToDemoCourse { newId ->
-                                        viewModel.selectCourse(newId)
-                                    }
-                                },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(44.dp)
-                                    .testTag("load_sample_course_button"),
-                                shape = RoundedCornerShape(10.dp)
-                            ) {
-                                Text("Load Sample", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                            }
-                        }
+                    Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
+                        Icon(Icons.Default.School, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(38.dp))
+                        Text("Your next big idea starts here.", style = MaterialTheme.typography.titleLarge)
+                        Text("Create a course from your own notes. LearnMate will keep its map, questions and tutor grounded in those materials.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Button(onClick = onNavigateToCreateCourse, modifier = Modifier.fillMaxWidth().testTag("create_first_course_button")) { Text("Create course from notes") }
                     }
                 }
             } else {
                 Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("current_course_card"),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    modifier = Modifier.fillMaxWidth().testTag("current_course_card"),
+                    shape = RoundedCornerShape(28.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(
-                                    text = "CURRENT COURSE",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    letterSpacing = 1.sp
-                                )
-                                Text(
-                                    text = currentCourse.title,
-                                    fontSize = 20.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-
-                            // Mastery Indicator based on genuine student assessments
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                            ) {
-                                val masteryScore = diagnostics?.overallMastery ?: 0
-                                Text(
-                                    text = "$masteryScore% Mastery",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(14.dp))
-                        MasteryProgressBar(progressPercent = diagnostics?.overallMastery ?: 0)
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Button(
-                                onClick = onNavigateToLearn,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(46.dp)
-                                    .testTag("continue_learning_button"),
-                                shape = RoundedCornerShape(10.dp)
-                            ) {
-                                Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(text = "Continue Learning", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                            }
-
-                            OutlinedButton(
-                                onClick = onNavigateToSkillMap,
-                                modifier = Modifier
-                                    .weight(0.9f)
-                                    .height(46.dp)
-                                    .testTag("view_skill_map_button"),
-                                shape = RoundedCornerShape(10.dp)
-                            ) {
-                                Icon(imageVector = Icons.Default.School, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(text = "Skill Map", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Today's Learning Plan Card
-        item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("today_plan_card"),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    Column(
+                        modifier = Modifier.background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.surface))).padding(22.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text(
-                            text = "Today's Learning Plan",
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant
-                        ) {
-                            Text(
-                                text = "Adapted",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                            Text("YOUR STUDY SPACE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                            Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface.copy(alpha = .82f)) {
+                                Text(if (mastery == null) "Not assessed" else "$mastery% mastery", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp))
+                            }
                         }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    if (planItems.isEmpty()) {
-                        Text(
-                            text = "No plan items scheduled yet. Take a diagnostic test to generate your personalized learning plan.",
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    } else {
-                        planItems.forEachIndexed { index, item ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable {
-                                        if (item.itemType == "QUIZ") onNavigateToQuiz(item.skillId)
-                                        else onNavigateToLesson(item.skillId)
+                        Text(course.title, style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onPrimaryContainer, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(course.description.ifBlank { "A focused place for your materials and progress." }, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = .82f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            MiniStat(Icons.Default.Description, "${documents.size} materials")
+                            MiniStat(Icons.Default.MenuBook, "${skills.size} topics")
+                            if (mastery != null) MiniStat(Icons.Default.CheckCircle, "${assessed.size} practiced")
+                        }
+                        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+                            if (maxWidth < 360.dp) {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Button(onClick = onNavigateToLearn, modifier = Modifier.fillMaxWidth()) {
+                                        Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Continue learning")
                                     }
-                                    .padding(vertical = 8.dp, horizontal = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Checkbox(
-                                    checked = item.isCompleted,
-                                    onCheckedChange = { viewModel.togglePlanItemCompleted(item.id, item.isCompleted) }
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "${index + 1}. ${item.title}",
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = if (item.isCompleted) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                                else MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = item.reason,
-                                        fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1
-                                    )
+                                    OutlinedButton(onClick = onNavigateToSkillMap, modifier = Modifier.fillMaxWidth()) { Text("View study map") }
                                 }
-                                Icon(
-                                    imageVector = Icons.Default.ArrowForward,
-                                    contentDescription = "Go",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Weak Skills & Strong Skills side-by-side or stacked
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                // Weak Skills (Needs Attention)
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("weak_skills_card"),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(imageVector = Icons.Default.Warning, contentDescription = null, tint = MasteryNeedsAttention, modifier = Modifier.size(16.dp))
-                            Text(text = "Weak Skills (Needs Attention)", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MasteryNeedsAttention)
-                        }
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        val weak = diagnostics?.weakSkills ?: emptyList()
-                        if (weak.isEmpty()) {
-                            Text(text = "No skills needing urgent attention right now!", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        } else {
-                            weak.take(2).forEach { (skill, score) ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 4.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(text = skill.name, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
-                                    MasteryBadge(status = MasteryStatus.NEEDS_ATTENTION, score = score)
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Strong Skills
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("strong_skills_card"),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, tint = MasteryStrong, modifier = Modifier.size(16.dp))
-                            Text(text = "Strong Skills", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MasteryStrong)
-                        }
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        val strong = diagnostics?.strongSkills ?: emptyList()
-                        if (strong.isEmpty()) {
-                            Text(text = "Keep learning to build strong skills!", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        } else {
-                            strong.take(2).forEach { (skill, score) ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 4.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(text = skill.name, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
-                                    MasteryBadge(status = MasteryStatus.STRONG, score = score)
+                            } else {
+                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                                    Button(onClick = onNavigateToLearn, modifier = Modifier.weight(1f)) {
+                                        Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Continue")
+                                    }
+                                    OutlinedButton(onClick = onNavigateToSkillMap, modifier = Modifier.weight(1f)) { Text("View study map") }
                                 }
                             }
                         }
@@ -475,166 +185,97 @@ fun HomeScreen(
             }
         }
 
-        // Ingested Course Materials card
-        item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("course_materials_card"),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-            ) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+        if (activeCourse != null) {
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                    Column {
+                        Text("Your next steps", style = MaterialTheme.typography.titleLarge)
+                        Text("Built from what you’ve studied so far", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Text("${planItems.count { !it.isCompleted }} left", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                }
+            }
+            if (planItems.isEmpty()) {
+                item { HintCard("Add a readable document to create a study plan, or explore a topic from your learning map.") }
+            } else {
+                items(planItems.take(4), key = { "plan-${it.id}" }) { item ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth().clickable {
+                            if (item.itemType.equals("QUIZ", true)) onNavigateToQuiz(item.skillId) else onNavigateToLesson(item.skillId)
+                        },
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Description,
-                                contentDescription = null,
-                                tint = BrandBluePrimary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Text(
-                                text = "Course Materials (${documents.size})",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = BrandEmerald.copy(alpha = 0.12f)
-                        ) {
-                            Text(
-                                text = "Processed On-Device",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = BrandEmerald,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    if (documents.isEmpty()) {
-                        Text(
-                            text = "No documents imported yet for this course.",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            documents.forEach { doc ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.weight(1f)
-                                    ) {
-                                        Icon(
-                                            imageVector = if (doc.fileType.equals("PDF", ignoreCase = true)) Icons.Default.PictureAsPdf else Icons.Default.Description,
-                                            contentDescription = doc.fileType,
-                                            tint = BrandBluePrimary,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Column {
-                                            Text(
-                                                text = doc.fileName,
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                color = MaterialTheme.colorScheme.onSurface,
-                                                maxLines = 1
-                                            )
-                                            Text(
-                                                text = "${doc.fileType} • ${doc.fileSize}",
-                                                fontSize = 11.sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    }
-
-                                    Surface(
-                                        shape = RoundedCornerShape(4.dp),
-                                        color = if (doc.processed) BrandEmerald.copy(alpha = 0.1f) else MaterialTheme.colorScheme.surfaceVariant
-                                    ) {
-                                        Text(
-                                            text = if (doc.processed) "Ingested" else "Processing",
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = if (doc.processed) BrandEmerald else MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                        )
-                                    }
-                                }
+                        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer) {
+                                Icon(if (item.itemType.equals("QUIZ", true)) Icons.Default.CheckCircle else Icons.Default.MenuBook, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(11.dp).size(21.dp))
                             }
+                            Spacer(Modifier.width(13.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(item.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(item.reason, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            }
+                            Text(if (item.isCompleted) "Done" else "Open", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                         }
                     }
                 }
             }
-        }
-
-        // Diagnostic Assessment CTA
-        item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onNavigateToDiagnostic)
-                    .testTag("diagnostic_cta_card"),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Find My Weaknesses",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "Run a comprehensive diagnostic assessment to calibrate your learner model.",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                        )
+            if (skills.isNotEmpty()) {
+                item {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                        Text("Pick up a topic", style = MaterialTheme.typography.titleLarge)
+                        Text("${skills.size} mapped", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Icon(
-                        imageVector = Icons.Default.Bolt,
-                        contentDescription = "Diagnostic",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
-                    )
+                }
+                items(skills.take(5), key = { "skill-${it.id}" }) { skill ->
+                    TopicCard(skill, learnerSkills.firstOrNull { it.skillId == skill.id }?.masteryScore, learnerSkills.firstOrNull { it.skillId == skill.id }?.attempts ?: 0) {
+                        onNavigateToLesson(skill.id)
+                    }
+                }
+                item {
+                    OutlinedButton(onClick = onNavigateToDiagnostic, modifier = Modifier.fillMaxWidth()) { Text("Check what you know") }
                 }
             }
-            Spacer(modifier = Modifier.height(20.dp))
+            if (diagnostics == null && skills.isEmpty()) {
+                item { HintCard("No topics were found in this course yet. Check that your document contains selectable text, then import it again if it is a scan.") }
+            }
         }
+        item { Spacer(Modifier.height(8.dp)) }
     }
 }
 
 @Composable
-fun rememberGreeting(): String {
-    val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-    return when (hour) {
-        in 0..11 -> "Good morning!"
-        in 12..16 -> "Good afternoon!"
-        else -> "Good evening!"
+private fun MiniStat(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String) {
+    Row(
+        modifier = Modifier.clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.surface.copy(alpha = .68f)).padding(horizontal = 10.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(15.dp))
+        Spacer(Modifier.width(5.dp))
+        Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+    }
+}
+
+@Composable
+private fun HintCard(message: String) {
+    Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
+        Text(message, modifier = Modifier.padding(17.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@Composable
+private fun TopicCard(skill: SkillEntity, mastery: Int?, attempts: Int, onClick: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
+                Icon(Icons.Default.MenuBook, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(11.dp).size(22.dp))
+            }
+            Spacer(Modifier.width(13.dp))
+            Column(Modifier.weight(1f)) {
+                Text(skill.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(skill.chapter, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text(if (attempts == 0) "Start" else "$mastery%", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        }
     }
 }

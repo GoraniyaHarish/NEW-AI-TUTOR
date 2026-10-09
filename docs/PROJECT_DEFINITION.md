@@ -112,8 +112,8 @@ DELIVER TO USER INTERFACE
 
 ### Online AI Requirements
 * Uses Google Gemini Flash models via official endpoints.
-* Secrets injected strictly via `BuildConfig` (from `.env` in AI Studio Secrets panel).
-* Requests must supply API credentials via HTTP headers (`x-goog-api-key`), never query strings.
+* Use Firebase AI Logic with App Check so Gemini Developer API credentials remain server-side.
+* Never embed Gemini Developer API keys in `BuildConfig`, app resources, or URLs.
 * Handles timeouts, rate limits, and network dropouts gracefully by falling back to local processing.
 
 ### Offline AI Requirements
@@ -210,7 +210,7 @@ STUDENT FILE (PDF / TXT / MD)
 
 1. **Credential Hygiene**:
    * Zero hardcoded API keys in code or version control.
-   * API keys loaded through `BuildConfig` and secured via Gradle Secrets Plugin.
+   * Gemini Developer API keys must remain server-side through Firebase AI Logic or a secured proxy.
    * No API keys in URL query strings.
 2. **Storage Isolation**:
    * Uploaded files stored within app-private directories.

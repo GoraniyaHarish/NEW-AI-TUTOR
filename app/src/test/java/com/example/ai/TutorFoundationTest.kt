@@ -6,6 +6,8 @@ import com.example.ai.nlp.QueryUnderstanding
 import com.example.ai.nlp.TutorIntent
 import com.example.core.network.NetworkMonitor
 import com.example.data.local.entity.DocumentChunkEntity
+import com.example.data.local.entity.LearnerSkillEntity
+import com.example.data.local.entity.QuestionEntity
 import com.example.data.local.entity.SkillEntity
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -111,7 +113,7 @@ class TutorFoundationTest {
         assertFalse(response.isGroundedInMaterial)
         assertNull("Missing material must have null sourceDocName", response.sourceDocName)
         assertNull("Missing material must have null sourcePage", response.sourcePage)
-        assertTrue("Response must state not found in uploaded materials", response.answer.contains("wasn't found in your uploaded study materials"))
+        assertTrue("Response must explain that no readable course text was retrieved", response.answer.contains("couldn't find readable text"))
     }
 
     @Test
@@ -137,7 +139,7 @@ class TutorFoundationTest {
         assertFalse(response.isGroundedInMaterial)
         assertNull(response.sourceDocName)
         assertNull(response.sourcePage)
-        assertTrue(response.answer.contains("couldn't find a relevant passage"))
+        assertTrue(response.answer.contains("couldn't find readable text"))
         assertFalse(response.answer.contains("A subclass inherits fields"))
     }
 
@@ -379,6 +381,100 @@ class TutorFoundationTest {
     }
 
     @Test
+    fun `skill extraction recognizes ordinary PDF headings and does not invent prerequisite links`() = runBlocking {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val db = androidx.room.Room.inMemoryDatabaseBuilder(context, com.example.data.local.database.LearnMateDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+        val router = AIRouter(LocalAIService(), com.example.ai.cloud.CloudAIService(), NetworkMonitor(context))
+        val repo = com.example.data.repository.LearnMateRepository(db, router, com.example.ai.retrieval.LocalRetriever())
+        val courseId = repo.createCourse("Biology", "Photosynthesis")
+        repo.addDocument(
+            courseId = courseId,
+            fileName = "Biology.pdf",
+            fileType = "PDF",
+            fileSize = "3 KB",
+            extractedChunks = listOf(
+                com.example.core.storage.ExtractedChunk(
+                    pageNumber = 1,
+                    chunkIndex = 0,
+                    text = listOf(
+                        "LearnMate device test material", "BIOLOGY STUDY SHEET | UNIT 3", "Photosynthesis",
+                        "A concise guide to how plants convert light energy into stored chemical energy.",
+                        "Where the process happens", "Photosynthesis takes place in chloroplasts and chlorophyll absorbs light.",
+                        "Two linked stages", "Light-dependent reactions release oxygen and form ATP and NADPH.",
+                        "What changes the rate?", "Light intensity and carbon dioxide concentration can change the rate of photosynthesis."
+                    ).joinToString("\n")
+                )
+            )
+        )
+
+        repo.processMaterialAndBuildSkillMap(courseId)
+
+        val skills = db.skillDao().getSkillsSync(courseId)
+        assertTrue(skills.map { it.name }.containsAll(listOf("Photosynthesis", "Where the process happens", "Two linked stages", "What changes the rate?")))
+        assertTrue(db.skillRelationDao().getRelationsSync(courseId).isEmpty())
+        db.close()
+    }
+
+    @Test
+    fun `untouched legacy course map and placeholder quiz are refreshed without discarding course content`() = runBlocking {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val db = androidx.room.Room.inMemoryDatabaseBuilder(context, com.example.data.local.database.LearnMateDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+        val repo = com.example.data.repository.LearnMateRepository(
+            db,
+            AIRouter(LocalAIService(), com.example.ai.cloud.CloudAIService(), NetworkMonitor(context)),
+            com.example.ai.retrieval.LocalRetriever()
+        )
+        val courseId = repo.createCourse("Biology", "Photosynthesis")
+        val documentId = repo.addDocument(
+            courseId, "Biology.pdf", "PDF", "3 KB",
+            listOf(com.example.core.storage.ExtractedChunk(1, 0, listOf(
+                "LearnMate device test material", "Photosynthesis",
+                "A concise guide to how plants convert light energy into stored chemical energy.",
+                "Where the process happens", "Photosynthesis takes place in chloroplasts and chlorophyll absorbs light.",
+                "Two linked stages", "Light-dependent reactions release oxygen and form ATP and NADPH.",
+                "What changes the rate?", "Light intensity and carbon dioxide concentration can change the rate of photosynthesis."
+            ).joinToString("\n")))
+        )
+        val legacySkillId = db.skillDao().insertSkill(SkillEntity(
+            courseId = courseId,
+            name = "LearnMate device test",
+            description = "LearnMate device test material - educational content for extraction checks.",
+            chapter = "Core Concepts",
+            sourceDocumentId = documentId,
+            sourceDocumentName = "Biology.pdf"
+        ))
+        db.learnerSkillDao().insertLearnerSkills(listOf(LearnerSkillEntity(legacySkillId, courseId)))
+        db.questionDao().insertQuestions(listOf(QuestionEntity(
+            courseId = courseId,
+            skillId = legacySkillId,
+            questionText = "Which statement is supported?",
+            optionA = "This detail is not stated in the retrieved passage.",
+            optionB = "This statement is unrelated to the retrieved topic.",
+            optionC = "Photosynthesis occurs in chloroplasts.",
+            optionD = "This claim is not supported by the retrieved passage.",
+            correctAnswerIndex = 2,
+            explanation = "Old generated item",
+            sourceDocumentName = "Biology.pdf"
+        )))
+
+        repo.ensureInitialData()
+
+        val refreshedSkills = db.skillDao().getSkillsSync(courseId)
+        val refreshedQuestions = db.questionDao().getQuestionsSync(courseId)
+        assertTrue(refreshedSkills.map { it.name }.containsAll(listOf("Photosynthesis", "Where the process happens", "Two linked stages", "What changes the rate?")))
+        assertTrue(refreshedQuestions.isNotEmpty())
+        assertTrue(refreshedQuestions.none { it.optionA.contains("not stated in the retrieved passage") || it.optionB.contains("not stated in the retrieved passage") })
+        assertTrue(refreshedQuestions.all { it.optionC.isBlank() && it.optionD.isBlank() })
+        assertEquals(0, db.learnerSkillDao().getLearnerSkillsSync(courseId).sumOf { it.attempts })
+        assertTrue(db.documentChunkDao().getChunksSync(courseId).isNotEmpty())
+        db.close()
+    }
+
+    @Test
     fun `local generateExplanation with zero retrieved chunks returns honest null citation state and no fabricated points`() = runBlocking {
         val localAI = LocalAIService()
         val skill = SkillEntity(
@@ -456,7 +552,7 @@ class TutorFoundationTest {
             
             val correctIdx = q.correctAnswerIndex
             println("DEBUG: i=$i, correctIdx=$correctIdx, skill.id=${skill.id}, chunk.id=${chunk.id}, difficulty=$difficulty")
-            assertTrue("Correct answer index must be in range 0..3", correctIdx in 0..3)
+            assertTrue("Correct answer index must be in range 0..1", correctIdx in 0..1)
             correctIndices.add(correctIdx)
             
             val chosenText = when (correctIdx) {
@@ -466,9 +562,10 @@ class TutorFoundationTest {
                 3 -> q.optionD
                 else -> ""
             }
-            assertEquals("Inheritance is a key mechanism of OOP.", chosenText)
+            assertEquals("Yes — this fact appears in your notes", chosenText)
             
-            val allOptions = listOf(q.optionA, q.optionB, q.optionC, q.optionD)
+            assertTrue(q.questionText.contains("Inheritance is a key mechanism of OOP."))
+            val allOptions = listOf(q.optionA, q.optionB)
             val distractors = allOptions.toMutableList().apply { removeAt(correctIdx) }
             for (distractor in distractors) {
                 assertFalse(distractor == chosenText)
@@ -539,8 +636,10 @@ class TutorFoundationTest {
         val correctAnswers = questions.map { question ->
             listOf(question.optionA, question.optionB, question.optionC, question.optionD)[question.correctAnswerIndex]
         }
-        assertEquals(2, correctAnswers.distinct().size)
-        assertTrue(correctAnswers.all { it.contains("Inheritance") || it.contains("Subclasses") || it.contains("Java") })
+        assertEquals(1, correctAnswers.distinct().size)
+        assertEquals("Yes — this fact appears in your notes", correctAnswers.first())
+        assertEquals(2, questions.map { it.questionText }.distinct().size)
+        assertTrue(questions.all { it.optionC.isBlank() && it.optionD.isBlank() })
     }
 
 }

@@ -7,16 +7,7 @@
 
 ## 2. Environment Setup
 
-Copy `.env.example` to `.env`:
-```bash
-cp .env.example .env
-```
-
-Optionally set your Gemini API key in `.env` if testing online cloud AI responses:
-```properties
-GEMINI_API_KEY=your_actual_gemini_api_key_here
-```
-*(Note: An API key is optional for core development. All local document ingestion, BM25 indexing, quizzes, mastery tracking, and offline tutoring work without a key.)*
+Cloud AI is optional. To enable it, configure a Firebase project for Firebase AI Logic and App Check, then place its `google-services.json` in `app/`. Debug builds use the App Check debug provider; launch the app, copy the debug token from Logcat, and register it under App Check > your Android app > Manage debug tokens in Firebase Console. Never share or commit that token. Release builds use Play Integrity and must be distributed through a channel that satisfies the Play Integrity settings configured in Firebase. Do not add a Gemini Developer API key to the app, `.env`, Gradle, or BuildConfig. Local document ingestion, BM25 indexing, quizzes, mastery tracking, and deterministic offline tutoring do not require Firebase configuration.
 
 ## 3. Building the Application
 

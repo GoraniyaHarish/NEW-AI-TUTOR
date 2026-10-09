@@ -30,6 +30,9 @@ interface CourseDao {
     @Query("SELECT * FROM courses ORDER BY createdAt ASC LIMIT 1")
     suspend fun getFirstCourse(): CourseEntity?
 
+    @Query("SELECT * FROM courses WHERE isDemo = 1")
+    suspend fun getLegacyDemoCourses(): List<CourseEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCourse(course: CourseEntity): Long
 
@@ -107,6 +110,9 @@ interface SkillRelationDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRelations(relations: List<SkillRelationEntity>)
+
+    @Query("DELETE FROM skill_relations WHERE courseId = :courseId")
+    suspend fun deleteRelationsForCourse(courseId: Long)
 }
 
 @Dao
@@ -119,6 +125,15 @@ interface QuestionDao {
 
     @Query("SELECT * FROM questions WHERE skillId = :skillId")
     suspend fun getQuestionsForSkill(skillId: Long): List<QuestionEntity>
+
+    @Query("SELECT * FROM questions WHERE courseId = :courseId AND (optionA LIKE '%not stated in the retrieved passage%' OR optionB LIKE '%not stated in the retrieved passage%' OR optionC LIKE '%not stated in the retrieved passage%' OR optionD LIKE '%not stated in the retrieved passage%')")
+    suspend fun getLegacyPlaceholderQuestions(courseId: Long): List<QuestionEntity>
+
+    @Query("DELETE FROM questions WHERE courseId = :courseId AND (optionA LIKE '%not stated in the retrieved passage%' OR optionB LIKE '%not stated in the retrieved passage%' OR optionC LIKE '%not stated in the retrieved passage%' OR optionD LIKE '%not stated in the retrieved passage%')")
+    suspend fun deleteLegacyPlaceholderQuestions(courseId: Long)
+
+    @Query("DELETE FROM questions WHERE courseId = :courseId")
+    suspend fun deleteQuestionsForCourse(courseId: Long)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertQuestions(questions: List<QuestionEntity>)
@@ -140,6 +155,9 @@ interface LearnerSkillDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertLearnerSkills(list: List<LearnerSkillEntity>)
+
+    @Query("DELETE FROM learner_skills WHERE courseId = :courseId")
+    suspend fun deleteLearnerSkillsForCourse(courseId: Long)
 }
 
 @Dao
@@ -147,8 +165,14 @@ interface QuizAttemptDao {
     @Query("SELECT * FROM quiz_attempts WHERE courseId = :courseId ORDER BY timestamp DESC")
     fun getAttemptsForCourse(courseId: Long): Flow<List<QuizAttemptEntity>>
 
+    @Query("SELECT * FROM quiz_attempts WHERE courseId = :courseId")
+    suspend fun getAttemptsForCourseSync(courseId: Long): List<QuizAttemptEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAttempt(attempt: QuizAttemptEntity): Long
+
+    @Query("DELETE FROM quiz_attempts WHERE courseId = :courseId")
+    suspend fun deleteAttemptsForCourse(courseId: Long)
 }
 
 @Dao
@@ -164,6 +188,12 @@ interface LearningPlanDao {
 
     @Query("SELECT * FROM learning_plan_items WHERE planId = :planId ORDER BY orderIndex ASC")
     suspend fun getPlanItemsSync(planId: Long): List<LearningPlanItemEntity>
+
+    @Query("DELETE FROM learning_plan_items WHERE courseId = :courseId")
+    suspend fun deletePlanItemsForCourse(courseId: Long)
+
+    @Query("DELETE FROM learning_plans WHERE courseId = :courseId")
+    suspend fun deletePlansForCourse(courseId: Long)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPlan(plan: LearningPlanEntity): Long

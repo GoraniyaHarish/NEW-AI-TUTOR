@@ -1,6 +1,5 @@
 package com.example.ui.components
 
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -15,8 +14,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.CloudDone
-import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.PlayCircleOutline
@@ -54,14 +53,8 @@ fun NetworkStatusIndicator(
     onToggleSimulation: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val bgColor by animateColorAsState(
-        targetValue = if (isOnline) Color(0xFFE0F2FE) else Color(0xFFFEF3C7),
-        label = "netBg"
-    )
-    val contentColor by animateColorAsState(
-        targetValue = if (isOnline) Color(0xFF0369A1) else Color(0xFFB45309),
-        label = "netContent"
-    )
+    val bgColor = if (isOnline) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.errorContainer
+    val contentColor = if (isOnline) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onErrorContainer
 
     Surface(
         modifier = modifier
@@ -79,18 +72,18 @@ fun NetworkStatusIndicator(
                 modifier = Modifier
                     .size(8.dp)
                     .clip(CircleShape)
-                    .background(if (isOnline) Color(0xFF0284C7) else Color(0xFFD97706))
+                    .background(if (isOnline) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
             )
             Spacer(modifier = Modifier.width(6.dp))
             Icon(
-                imageVector = if (isOnline) Icons.Default.CloudDone else Icons.Default.CloudOff,
-                contentDescription = if (isOnline) "Online" else "Offline",
+                imageVector = if (isOnline) Icons.Default.Wifi else Icons.Default.WifiOff,
+                contentDescription = if (isOnline) "Internet connected" else "No internet connection",
                 tint = contentColor,
                 modifier = Modifier.size(14.dp)
             )
             Spacer(modifier = Modifier.width(4.dp))
             Text(
-                text = if (isOnline) "ONLINE" else "OFFLINE",
+                text = if (isOnline) "INTERNET" else "NO INTERNET",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = contentColor
@@ -98,7 +91,7 @@ fun NetworkStatusIndicator(
             if (isSimulatedOffline) {
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = "(Demo)",
+                    text = "(Preview)",
                     fontSize = 10.sp,
                     color = contentColor.copy(alpha = 0.8f)
                 )

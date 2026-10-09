@@ -116,7 +116,8 @@ object QueryUnderstanding {
 
             // Summary / Quick recap
             qLower.contains("summary") ||
-                    qLower.contains("summarize") ||
+                    qLower.contains("summari") || // covers summarize, summarise, summarizing, and summaries
+                    qLower.contains("summeris") || qLower.contains("summeriz") ||
                     qLower.contains("recap") ||
                     qLower.contains("short notes") ||
                     qLower.contains("cheat sheet") ||

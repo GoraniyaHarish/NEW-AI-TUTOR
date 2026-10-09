@@ -16,3 +16,6 @@
 local.properties
 .env
 debug.keystore
+
+# Firebase project-specific Android configuration
+/app/google-services.json

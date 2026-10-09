@@ -1,6 +1,7 @@
 package com.example.core
 
 import android.content.Context
+import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
 import com.example.core.storage.DocumentTextProcessor
 import com.example.core.storage.ExtractedPage
@@ -20,10 +21,45 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.InputStream
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 class PdfTextExtractorTest {
+
+    @Test
+    fun `unsupported document type is rejected instead of decoded as plain text`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val result = PdfTextExtractor(context).extractTextFromUri(
+            Uri.parse("content://documents/notes.docx"),
+            "notes.docx"
+        )
+
+        assertTrue(result is IngestionResult.Failure)
+        assertTrue((result as IngestionResult.Failure).reason.contains("Unsupported file type"))
+    }
+
+    @Test
+    fun `oversized text stream is stopped at the import limit`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val limit = DocumentTextProcessor.MAX_FILE_SIZE_BYTES
+        val generatedStream = object : InputStream() {
+            private var remaining = limit + 1
+            override fun read(): Int = if (remaining-- > 0) 'x'.code else -1
+            override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+                if (remaining <= 0) return -1
+                val count = minOf(length.toLong(), remaining).toInt()
+                buffer.fill('x'.code.toByte(), offset, offset + count)
+                remaining -= count
+                return count
+            }
+        }
+
+        val result = PdfTextExtractor(context).extractFromPlainTextStream(generatedStream)
+
+        assertTrue(result is IngestionResult.Failure)
+        assertTrue((result as IngestionResult.Failure).reason.contains("50 MB"))
+    }
 
     @Test
     fun `1 valid material extracts chunks accurately`() {

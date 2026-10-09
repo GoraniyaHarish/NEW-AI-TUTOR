@@ -59,8 +59,7 @@ data class OnboardingPageData(
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
 fun OnboardingScreen(
-    onFinishOnboarding: () -> Unit,
-    onSkipToDemo: () -> Unit
+    onFinishOnboarding: () -> Unit
 ) {
     val pages = listOf(
         OnboardingPageData(
@@ -100,23 +99,6 @@ fun OnboardingScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween
     ) {
-        // Top skip bar
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End
-        ) {
-            TextButton(
-                onClick = onSkipToDemo,
-                modifier = Modifier.testTag("skip_to_demo_button")
-            ) {
-                Text(
-                    text = "Load Demo Course",
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-        }
-
         // Center Content
         AnimatedContent(
             targetState = currentPage,

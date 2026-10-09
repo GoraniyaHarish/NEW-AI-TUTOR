@@ -48,6 +48,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.flow.flowOf
 import com.example.ai.retrieval.LocalRetriever
 import com.example.ai.retrieval.RetrievedChunk
 import com.example.ui.components.SourceCitationChip
@@ -64,7 +65,10 @@ fun SearchScreen(
     val activeCourse by viewModel.activeCourse.collectAsState()
     val activeCourseId by viewModel.activeCourseId.collectAsState()
     val skills by viewModel.skills.collectAsState()
-    val allChunks by viewModel.repository.getChunks(activeCourseId ?: 1L)
+    val chunksFlow = remember(activeCourseId) {
+        activeCourseId?.let(viewModel.repository::getChunks) ?: flowOf(emptyList())
+    }
+    val allChunks by chunksFlow
         .collectAsState(initial = emptyList())
 
     val retriever = remember { LocalRetriever() }

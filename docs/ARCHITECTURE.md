@@ -40,7 +40,7 @@
 |  [Network Available + Valid Key]           [Offline / Key Missing]       |
 |                 |                                      |                 |
 |                 v                                      v                 |
-|       CloudAIService (Gemini)              DeterministicTutorEngine      |
+|  Firebase AI Logic + App Check             DeterministicTutorEngine      |
 |  - Grounded prompt injection             - Grounded chunk summarization  |
 |  - Source provenance validation          - Keyword-matched extraction    |
 |  - Anti-hallucination guardrails         - Zero network required         |
@@ -64,9 +64,10 @@
 - Completely runs on-device in under 50ms without external server dependencies.
 
 ### 2.4 Hybrid Tutoring Engine
-- **CloudAIService (Gemini)**:
+- **CloudAIService (Firebase AI Logic)**:
   - Generates conversational Socratic explanations, quizzes, and learning tips when connected.
-  - Injects retrieved local document chunks into the prompt context with strict citation instructions.
+  - Sends only retrieved local document chunks and the current conversation context through Firebase AI Logic.
+  - Uses Firebase App Check; Gemini Developer API credentials are not embedded in the APK.
   - Validates source provenance to prevent hallucinated citations.
 - **DeterministicTutorEngine (Offline Fallback)**:
   - When offline or without an API key, extracts and organizes key knowledge points directly from retrieved chunks.
