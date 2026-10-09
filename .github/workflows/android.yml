@@ -40,6 +40,7 @@ jobs:
         run: bash ./gradlew :app:testDebugUnitTest --stacktrace
 
       - name: Build debug APK
+        id: build_apk
         run: bash ./gradlew :app:assembleDebug --stacktrace
 
       - name: Upload installable debug APK
@@ -50,8 +51,19 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Publish APK to GitHub Releases
+      - name: Verify this is still the latest main commit
+        id: latest
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: |
+          git fetch --no-tags origin main
+          if [ "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)" ]; then
+            echo "is_latest=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_latest=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish APK to GitHub Releases
+        if: steps.build_apk.outcome == 'success' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && steps.latest.outputs.is_latest == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
