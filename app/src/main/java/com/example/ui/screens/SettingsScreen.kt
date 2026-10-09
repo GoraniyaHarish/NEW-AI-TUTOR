@@ -215,7 +215,7 @@ fun SettingsScreen(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = if (isOnline) "Status: Online (Gemini 3.5 Flash connected)"
+                                    text = if (isOnline) "Status: Internet available (Cloud AI requires a configured API key)"
                                            else "Status: Offline (Local Knowledge Base Active)",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium,
@@ -294,7 +294,7 @@ fun SettingsScreen(
                                     color = MaterialTheme.colorScheme.surfaceVariant
                                 ) {
                                     Text(
-                                        text = "Current: Using built-in statistical RAG (0 MB footprint, instant response).",
+                                        text = "Available now: local document search and structured tutoring. Neural model download and inference are not available in this build.",
                                         fontSize = 11.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.padding(8.dp)
@@ -304,13 +304,14 @@ fun SettingsScreen(
                                 Spacer(modifier = Modifier.height(12.dp))
 
                                 androidx.compose.material3.Button(
+                                    enabled = false,
                                     onClick = { viewModel.modelManager.startDownload() },
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .testTag("download_model_button"),
                                     shape = RoundedCornerShape(10.dp)
                                 ) {
-                                    Text("Download On-Device Model (${modelInfo.sizeMb} MB)")
+                                    Text("On-device neural model not available in this build")
                                 }
                             }
 
