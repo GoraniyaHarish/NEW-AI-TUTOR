@@ -3,9 +3,10 @@ package com.example.core.storage
 import android.content.Context
 import android.net.Uri
 import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
 import java.io.InputStream
-import java.util.zip.InflaterInputStream
+import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
+import com.tom_roush.pdfbox.pdmodel.PDDocument
+import com.tom_roush.pdfbox.text.PDFTextStripper
 
 data class ExtractedPage(
     val pageNumber: Int,
@@ -284,127 +285,29 @@ class PdfTextExtractor(private val context: Context) {
     }
 
     /**
-     * Robust pure-Kotlin PDF stream extractor:
-     * - Scans for FlateDecode compressed streams and decompresses with InflaterInputStream
-     * - Parses text drawing operators (Tj, TJ, ', ")
-     * - Handles uncompressed text blocks (BT ... ET)
-     * - Distributes content across detected page boundaries
+     * Uses PDFBox-Android to parse real PDF object structures, compressed streams,
+     * encoded text, and per-page text. Scanned/image-only PDFs still require OCR,
+     * which is not included in this build.
      */
     private fun parsePdfBytes(bytes: ByteArray): List<ExtractedPage> {
-        val pages = mutableListOf<ExtractedPage>()
-        val pdfString = String(bytes, Charsets.ISO_8859_1)
-
-        // Split by page objects if available: /Type /Page
-        val pageObjectMarkers = Regex("/Type\\s*/Page\\b").findAll(pdfString).toList()
-        val totalDetectedPages = pageObjectMarkers.size.coerceAtLeast(1)
-
-        val fullTextBuilder = StringBuilder()
-
-        // 1. Find compressed FlateDecode streams
-        val streamRegex = Regex("/Filter\\s*/FlateDecode[\\s\\S]*?stream\\r?\\n([\\s\\S]*?)\\r?\\nendstream")
-        val streamMatches = streamRegex.findAll(pdfString)
-
-        for (match in streamMatches) {
-            val streamStartIndex = match.groups[1]?.range?.first ?: continue
-            val streamEndIndex = match.groups[1]?.range?.last ?: continue
-            if (streamEndIndex <= streamStartIndex || streamEndIndex > bytes.size) continue
-
-            try {
-                val streamBytes = bytes.copyOfRange(streamStartIndex, streamEndIndex + 1)
-                val decompressed = decompressFlate(streamBytes)
-                val textFromStream = extractTextFromStream(decompressed)
-                if (textFromStream.isNotBlank()) {
-                    fullTextBuilder.append(textFromStream).append("\n\n")
-                }
-            } catch (_: Exception) {
-                // Stream decompression failure handled gracefully
-            }
-        }
-
-        // 2. Also check uncompressed text streams: BT ... ET
-        val btRegex = Regex("BT([\\s\\S]*?)ET")
-        for (match in btRegex.findAll(pdfString)) {
-            val textContent = extractTextFromOperators(match.groupValues[1])
-            if (textContent.isNotBlank()) {
-                fullTextBuilder.append(textContent).append("\n")
-            }
-        }
-
-        val extracted = fullTextBuilder.toString().trim()
-        if (extracted.isNotBlank()) {
-            val lines = extracted.lines()
-            // Distribute lines across detected pages or uniform page windows (35 lines/page)
-            val linesPerPage = if (totalDetectedPages > 1) {
-                (lines.size / totalDetectedPages).coerceAtLeast(20)
-            } else {
-                35
-            }
-
-            val chunkedPages = lines.chunked(linesPerPage)
-            chunkedPages.forEachIndexed { index, pageLines ->
-                val pageText = pageLines.joinToString("\n").trim()
-                if (pageText.isNotBlank()) {
-                    pages.add(ExtractedPage(pageNumber = index + 1, text = pageText))
-                }
-            }
-        }
-
-        return pages
-    }
-
-    private fun decompressFlate(input: ByteArray): String {
         return try {
-            val bais = ByteArrayInputStream(input)
-            val inflater = InflaterInputStream(bais)
-            val baos = ByteArrayOutputStream()
-            val buffer = ByteArray(2048)
-            var len: Int
-            while (inflater.read(buffer).also { len = it } > 0) {
-                baos.write(buffer, 0, len)
+            PDFBoxResourceLoader.init(context)
+            PDDocument.load(ByteArrayInputStream(bytes)).use { document ->
+                (1..document.numberOfPages).map { pageNumber ->
+                    val stripper = PDFTextStripper().apply {
+                        startPage = pageNumber
+                        endPage = pageNumber
+                    }
+                    ExtractedPage(
+                        pageNumber = pageNumber,
+                        text = stripper.getText(document).trim()
+                    )
+                }
             }
-            baos.toString("UTF-8")
         } catch (_: Exception) {
-            ""
+            // The caller converts parse failures into an explicit ingestion failure.
+            emptyList()
         }
     }
-
-    private fun extractTextFromStream(content: String): String {
-        val result = StringBuilder()
-        val btRegex = Regex("BT([\\s\\S]*?)ET")
-        val matches = btRegex.findAll(content)
-        for (m in matches) {
-            val clean = extractTextFromOperators(m.groupValues[1])
-            if (clean.isNotBlank()) {
-                result.append(clean).append("\n")
-            }
-        }
-        return result.toString().trim()
-    }
-
-    private fun extractTextFromOperators(block: String): String {
-        val sb = StringBuilder()
-        val tjLiteralRegex = Regex("\\((.*?)\\)\\s*Tj")
-        for (match in tjLiteralRegex.findAll(block)) {
-            sb.append(unescapePdfString(match.groupValues[1])).append(" ")
-        }
-        val tjArrayRegex = Regex("\\[(.*?)\\]\\s*TJ")
-        for (match in tjArrayRegex.findAll(block)) {
-            val inside = match.groupValues[1]
-            val subLiterals = Regex("\\((.*?)\\)").findAll(inside)
-            for (sub in subLiterals) {
-                sb.append(unescapePdfString(sub.groupValues[1])).append(" ")
-            }
-        }
-        return sb.toString().replace(Regex("\\s+"), " ").trim()
-    }
-
-    private fun unescapePdfString(str: String): String {
-        return str
-            .replace("\\(", "(")
-            .replace("\\)", ")")
-            .replace("\\\\", "\\")
-            .replace("\\n", "\n")
-            .replace("\\r", "\r")
-            .replace("\\t", "\t")
-    }
+}
 }
