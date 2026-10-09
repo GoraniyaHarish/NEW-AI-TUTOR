@@ -202,7 +202,11 @@ class LearnMateRepository(
                 // Generate initial questions using retrieved chunks
                 val questions = mutableListOf<QuestionEntity>()
                 extractedSkills.zip(skillIds).forEach { (skill, id) ->
-                    questions.addAll(aiRouter.generateQuestionsForSkill(skill.copy(id = id), 2, "MEDIUM", chunks))
+                    val skillChunks = retriever.search(skill.name, chunks, courseId = courseId, topK = 4)
+                        .map { it.chunk }
+                    questions.addAll(
+                        aiRouter.generateQuestionsForSkill(skill.copy(id = id), 2, "MEDIUM", skillChunks)
+                    )
                 }
                 database.questionDao().insertQuestions(questions)
             }
