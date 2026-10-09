@@ -229,7 +229,7 @@ fun SettingsScreen(
 
             item {
                 Text(
-                    text = "ON-DEVICE NEURAL MODEL",
+                    text = "ON-DEVICE NEURAL MODEL (ROADMAP)",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
@@ -255,13 +255,13 @@ fun SettingsScreen(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = modelInfo.name,
+                                    text = "Optional on-device model (planned)",
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    text = "${modelInfo.architecture} • ${modelInfo.sizeMb} MB • INT4 Quantized",
+                                    text = "Gemma 2B INT4 • not included or downloadable in this build",
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.primary
                                 )
