@@ -7,7 +7,6 @@
 [![UI](https://img.shields.io/badge/Jetpack%20Compose-M3-4285F4.svg)](https://developer.android.com/jetpack/compose)
 [![Database](https://img.shields.io/badge/Room-SQLite-276DC3.svg)](https://developer.android.com/training/data-storage/room)
 [![Build](https://img.shields.io/badge/Gradle-9.3.1-02303A.svg?logo=gradle&logoColor=white)](https://gradle.org/)
-[![Tests](https://img.shields.io/badge/Unit%20Tests-100%25%20Passing-success.svg)](#reproducibility--testing)
 
 ---
 
@@ -34,7 +33,7 @@ Local Ingestion & Chunking (PdfBox-Android)
        ↓
 Local Knowledge Base (Room SQLite)
        ↓
-Local BM25 Retrieval (<50ms on-device)
+Local BM25 Retrieval
        ↓
 Grounded Tutor (Offline Deterministic / Online Gemini)
        ↓
@@ -57,7 +56,7 @@ Personalized Next Step & Study Path
 - **Adaptive Study Plans**: Prerequisite tree evaluation recommending the highest-priority topics.
 - **Spaced Repetition Scheduler**: SuperMemo-2 (SM-2) algorithm determining review intervals and ease factors.
 - **Text-to-Speech (TTS)**: Built-in Android TTS support for audio-assisted learning.
-- **Offline-First Resilience**: All core functions work completely offline without network or third-party cloud accounts.
+- **Offline-First Resilience**: Local document search, deterministic tutoring, assessment, mastery tracking, and review scheduling are designed to work without a network connection.
 
 ---
 
@@ -80,10 +79,10 @@ Personalized Next Step & Study Path
 ## Grounding & Trust
 
 LearnMate strictly enforces document provenance:
-1. **Query Extraction**: The student's question generates targeted keywords.
-2. **Context Retrieval**: BM25 ranks top matching chunks directly from the student's uploaded notes.
-3. **Context Injection**: The AI is instructed to synthesize answers exclusively from verified source passages.
-4. **Provenance Guard**: Responses cite exact source filenames and passages without inventing references.
+1. **Query Analysis**: The app identifies the likely tutoring intent and useful query terms.
+2. **Context Retrieval**: BM25 ranks chunks from the selected course materials.
+3. **Grounded Response**: Offline tutoring uses retrieved text; if no readable passage is found, it reports that limitation rather than treating skill metadata as evidence.
+4. **Provenance**: Document name and page citations are taken from retrieved chunk metadata.
 
 ---
 
@@ -154,14 +153,14 @@ cp .env.example .env
 # Verify Gradle wrapper
 ./gradlew --version
 
-# Run all unit and Robolectric tests (13 test suites)
+# Run unit and Robolectric tests
 ./gradlew :app:testDebugUnitTest
 
 # Build debug APK
 ./gradlew :app:assembleDebug
 ```
 
-The APK will be generated at `app/build/outputs/apk/debug/app-debug.apk`.
+The APK will be generated at `app/build/outputs/apk/debug/app-debug.apk`. Verify build and test results on the current checkout before reporting them as passing.
 
 ---
 
@@ -171,7 +170,7 @@ The APK will be generated at `app/build/outputs/apk/debug/app-debug.apk`.
 NEW-AI-TUTOR/
 ├── app/                  # Android application module
 │   ├── src/main/java/    # Kotlin Jetpack Compose and architecture source
-│   ├── src/test/java/    # 13 comprehensive unit and Robolectric test suites
+│   ├── src/test/java/    # Unit and Robolectric tests
 │   └── build.gradle.kts  # App-level build configuration
 ├── docs/                 # Authoritative project documentation
 │   ├── ARCHITECTURE.md   # System design and component interactions
