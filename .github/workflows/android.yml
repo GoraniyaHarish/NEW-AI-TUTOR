@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   test-and-build:
@@ -61,6 +61,19 @@ jobs:
 
       - name: Build debug APK
         run: bash ./gradlew :app:assembleDebug --stacktrace
+
+      - name: Publish APK to GitHub Releases
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: LearnMate build #${{ github.run_number }}
+          body: |
+            Automatically generated installable Android APK from the latest successful main-branch CI run.
+
+            **Install:** Download `app-debug.apk` below, open it on your Android device, and allow installation from this source if Android asks. This is a debug build for testing and mentor demonstrations, not a Play Store release.
+          files: app/build/outputs/apk/debug/app-debug.apk
+          make_latest: true
 
       - name: Upload installable debug APK
         uses: actions/upload-artifact@v4
