@@ -59,7 +59,7 @@ fun ProfileScreen(
     val activeCourse by viewModel.activeCourse.collectAsState()
     val diagnostics by viewModel.diagnostics.collectAsState()
     val learnerSkills by viewModel.learnerSkills.collectAsState()
-    val attempts by viewModel.repository.getAttempts(activeCourse?.id ?: 1L)
+    val attempts by viewModel.repository.getAttempts(activeCourse?.id ?: 0L)
         .collectAsState(initial = emptyList())
 
     val totalQuizzes = attempts.size
@@ -199,7 +199,7 @@ fun ProfileScreen(
                         Column(modifier = Modifier.padding(14.dp)) {
                             Icon(imageVector = Icons.Default.Psychology, contentDescription = null, tint = BrandBluePrimary, modifier = Modifier.size(24.dp))
                             Spacer(modifier = Modifier.height(8.dp))
-                            Text(text = "${diagnostics?.overallMastery ?: 68}%", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            Text(text = diagnostics?.overallMastery?.let { "$it%" } ?: "—", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                             Text(text = "Course Mastery", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
