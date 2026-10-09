@@ -78,8 +78,9 @@ class LocalAIService(
         }
 
         // 2. Grounded explanation constructed directly from retrieved material
-        val topicTitle = skill?.name ?: "Topic from ${topChunk?.sourceDocumentName ?: "your notes"}"
-        val materialText = topChunk!!.text
+        val evidenceChunk = requireNotNull(topChunk)
+        val topicTitle = skill?.name ?: "Topic from ${evidenceChunk.sourceDocumentName}"
+        val materialText = evidenceChunk.text
 
         val responseText = buildString {
             when (analyzed.intent) {
@@ -121,7 +122,7 @@ class LocalAIService(
                     sentences.take(3).forEach { s ->
                         append("✔ ${s.trim()}\n")
                     }
-                    append("\n*(Extracted from ${topChunk?.sourceDocumentName ?: skill?.sourceDocumentName ?: "Course Notes"}, Page ${topChunk?.pageNumber ?: skill?.sourcePage ?: 1})*")
+                    append("\n*(Extracted from ${evidenceChunk.sourceDocumentName}, Page ${evidenceChunk.pageNumber})*")
                 }
 
                 TutorIntent.QUIZ -> {
@@ -140,13 +141,13 @@ class LocalAIService(
                 }
             }
 
-            append("\n\n*(Based on retrieved passage from ${topChunk.sourceDocumentName}, page ${topChunk.pageNumber}. On-device neural model not installed; showing structured offline notes analysis.)*")
+            append("\n\n*(Based on retrieved passage from ${evidenceChunk.sourceDocumentName}, page ${evidenceChunk.pageNumber}. On-device neural model not installed; showing structured offline notes analysis.)*")
         }
 
         TutorResponse(
             answer = responseText,
-            sourceDocName = topChunk.sourceDocumentName,
-            sourcePage = topChunk.pageNumber,
+            sourceDocName = evidenceChunk.sourceDocumentName,
+            sourcePage = evidenceChunk.pageNumber,
             isOffline = true,
             confidence = 0.92f,
             isGroundedInMaterial = true,
@@ -189,7 +190,7 @@ class LocalAIService(
         }
 
         val examples = listOf(
-            "Retrieved passage in ${topChunk.sourceDocumentName} (Page ${topChunk.pageNumber})."
+            "Retrieved passage in ${evidenceChunk.sourceDocumentName} (Page ${evidenceChunk.pageNumber})."
         )
 
         LessonExplanation(
@@ -197,8 +198,8 @@ class LocalAIService(
             summary = summary,
             keyPoints = keyPoints,
             examples = examples,
-            sourceDocName = topChunk.sourceDocumentName,
-            sourcePage = topChunk.pageNumber
+            sourceDocName = evidenceChunk.sourceDocumentName,
+            sourcePage = evidenceChunk.pageNumber
         )
     }
 
@@ -230,17 +231,17 @@ class LocalAIService(
         val q1 = QuestionEntity(
             courseId = skill.courseId,
             skillId = skill.id,
-            questionText = "According to document '${topChunk.sourceDocumentName}' (Page ${topChunk.pageNumber}), which statement accurately reflects '${skill.name}'?",
+            questionText = "According to document '${evidenceChunk.sourceDocumentName}' (Page ${evidenceChunk.pageNumber}), which statement accurately reflects '${skill.name}'?",
             optionA = optionsList[0],
             optionB = optionsList[1],
             optionC = optionsList[2],
             optionD = optionsList[3],
             correctAnswerIndex = correctIndex,
-            explanation = "Verified directly from page ${topChunk.pageNumber} of ${topChunk.sourceDocumentName}.",
+            explanation = "Verified directly from page ${evidenceChunk.pageNumber} of ${evidenceChunk.sourceDocumentName}.",
             difficulty = difficulty,
-            hint = "Check page ${topChunk.pageNumber} in ${topChunk.sourceDocumentName}.",
-            sourceDocumentName = topChunk.sourceDocumentName,
-            sourcePage = topChunk.pageNumber
+            hint = "Check page ${evidenceChunk.pageNumber} in ${evidenceChunk.sourceDocumentName}.",
+            sourceDocumentName = evidenceChunk.sourceDocumentName,
+            sourcePage = evidenceChunk.pageNumber
         )
 
         listOf(q1).take(count)
