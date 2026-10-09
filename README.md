@@ -173,6 +173,8 @@ The APK will be generated at `app/build/outputs/apk/debug/app-debug.apk`. Verify
 
 Cloud AI requires a Firebase project configured for Firebase AI Logic and App Check, with its `google-services.json` in `app/`. Do not put a Gemini Developer API key in the Android app or its build configuration; Firebase AI Logic keeps that authorization on Google's service side.
 
+For GitHub Actions builds, add the complete contents of `app/google-services.json` as a repository Actions secret named `GOOGLE_SERVICES_JSON`. The local file is ignored by Git and is not automatically available to GitHub's build runners. Without this secret, CI can still publish a tested APK, but cloud AI will be unavailable in that APK.
+
 ---
 
 ## Project Structure
