@@ -6,6 +6,11 @@ import com.example.core.storage.DocumentTextProcessor
 import com.example.core.storage.ExtractedPage
 import com.example.core.storage.IngestionResult
 import com.example.core.storage.PdfTextExtractor
+import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
+import com.tom_roush.pdfbox.pdmodel.PDDocument
+import com.tom_roush.pdfbox.pdmodel.PDPage
+import com.tom_roush.pdfbox.pdmodel.PDPageContentStream
+import com.tom_roush.pdfbox.pdmodel.font.PDType1Font
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -14,6 +19,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -185,4 +191,47 @@ class PdfTextExtractorTest {
         assertTrue("Chunk text must reflect input document", chunks.any { it.text.contains("statically typed") })
         assertFalse("Must not inject physics keywords", chunks.any { it.text.contains("kinematics") || it.text.contains("gravity") })
     }
+    @Test
+    fun `valid multi-page PDF preserves page text and provenance`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        PDFBoxResourceLoader.init(context)
+
+        val pdfBytes = ByteArrayOutputStream().use { output ->
+            PDDocument().use { document ->
+                val firstPage = PDPage()
+                document.addPage(firstPage)
+                PDPageContentStream(document, firstPage).use { stream ->
+                    stream.beginText()
+                    stream.setFont(PDType1Font.HELVETICA, 12f)
+                    stream.newLineAtOffset(50f, 700f)
+                    stream.showText("Photosynthesis converts light energy into chemical energy.")
+                    stream.endText()
+                }
+
+                val secondPage = PDPage()
+                document.addPage(secondPage)
+                PDPageContentStream(document, secondPage).use { stream ->
+                    stream.beginText()
+                    stream.setFont(PDType1Font.HELVETICA, 12f)
+                    stream.newLineAtOffset(50f, 700f)
+                    stream.showText("Chlorophyll absorbs light inside chloroplasts.")
+                    stream.endText()
+                }
+                document.save(output)
+            }
+            output.toByteArray()
+        }
+
+        val result = PdfTextExtractor(context).extractFromPdfStream(
+            ByteArrayInputStream(pdfBytes),
+            "Biology_Notes.pdf"
+        )
+
+        assertTrue("A readable PDF should be parsed", result is IngestionResult.Success)
+        result as IngestionResult.Success
+        assertEquals(2, result.pageCount)
+        assertTrue(result.chunks.any { it.pageNumber == 1 && it.text.contains("Photosynthesis") })
+        assertTrue(result.chunks.any { it.pageNumber == 2 && it.text.contains("Chlorophyll") })
+    }
+
 }
