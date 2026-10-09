@@ -37,15 +37,15 @@ class LocalAIService(
             lastAssistantMessage = lastAssistantMsg
         )
 
-        val topChunk = relevantChunks.firstOrNull()
+        val topChunk = relevantChunks.firstOrNull { it.text.isNotBlank() }
         val hasEvidence = topChunk != null && topChunk.text.isNotBlank()
 
         // A skill record is metadata, not retrieved evidence. Never answer or cite as
         // document-grounded when retrieval returned no readable passage.
         if (!hasEvidence) {
             val missingAnswer = buildString {
-                append("I couldn't find a relevant passage in your uploaded study materials for this question.\\n\\n")
-                append("Offline mode currently uses local document search and structured tutoring; an on-device neural model is not installed.\\n\\n")
+                append("I couldn't find a relevant passage in your uploaded study materials for this question.\n\n")
+                append("Offline mode currently uses local document search and structured tutoring; an on-device neural model is not installed.\n\n")
                 append("Try asking about a topic covered in your imported notes, or connect to Cloud AI for questions beyond those materials.")
             }
             return@withContext TutorResponse(
