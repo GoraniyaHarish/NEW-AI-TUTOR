@@ -12,7 +12,7 @@ permissions:
 jobs:
   test-and-build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -34,6 +34,21 @@ jobs:
       - name: Run unit tests
         run: bash ./gradlew :app:testDebugUnitTest --stacktrace
 
+      # Build the installable APK before emulator tests. A flaky emulator must not
+      # prevent a build that passed compilation and unit tests from being published.
+      - name: Build debug APK
+        id: build_apk
+        run: bash ./gradlew :app:assembleDebug --stacktrace
+
+      - name: Upload installable debug APK
+        if: always() && steps.build_apk.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: learnmate-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Run student journey UI tests on Android emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -42,43 +57,37 @@ jobs:
           arch: x86_64
           profile: pixel_2
           disable-animations: true
+          emulator-boot-timeout: 600
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           script: |
-            adb shell pm clear com.learnmate.app || true
+            adb devices
+            adb shell getprop sys.boot_completed
             bash ./gradlew :app:connectedDebugAndroidTest --stacktrace
 
       - name: Upload unit and emulator test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: android-unit-test-reports
+          name: android-test-reports
           path: |
             app/build/reports/tests/testDebugUnitTest/
             app/build/test-results/testDebugUnitTest/
             app/build/reports/androidTests/connected/
             app/build/outputs/androidTest-results/connected/
           if-no-files-found: warn
-          retention-days: 7
+          retention-days: 14
 
-      - name: Build debug APK
-        run: bash ./gradlew :app:assembleDebug --stacktrace
-
+      # Publish after the build even if emulator boot/UI tests fail.
       - name: Publish APK to GitHub Releases
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        if: always() && steps.build_apk.outcome == 'success' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
           name: LearnMate build #${{ github.run_number }}
           body: |
-            Automatically generated installable Android APK from the latest successful main-branch CI run.
+            Installable LearnMate Android debug APK built from the main branch.
+            Unit tests and APK compilation must pass for this artifact to be produced. Check the linked Actions run for the separate emulator UI-test result.
 
-            **Install:** Download `app-debug.apk` below, open it on your Android device, and allow installation from this source if Android asks. This is a debug build for testing and mentor demonstrations, not a Play Store release.
+            **Install:** Download `app-debug.apk` to an Android device and open it. Allow installation from this source if Android asks. This debug build is for testing and mentor demonstrations, not a Play Store release.
           files: app/build/outputs/apk/debug/app-debug.apk
           make_latest: true
-
-      - name: Upload installable debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: learnmate-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 7
