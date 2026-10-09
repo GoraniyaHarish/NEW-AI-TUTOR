@@ -9,6 +9,11 @@ on:
 permissions:
   contents: write
 
+# Keep only the newest main-branch CI run active while iterating quickly.
+concurrency:
+  group: learnmate-android-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
@@ -83,16 +88,14 @@ jobs:
       - name: Run student journey UI tests on Android emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: 34
           target: google_apis
           arch: x86_64
           profile: pixel_2
           disable-animations: true
-          emulator-boot-timeout: 600
+          emulator-boot-timeout: 900
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           script: |
-            adb devices
-            adb shell getprop sys.boot_completed
             bash ./gradlew :app:connectedDebugAndroidTest --stacktrace
 
       - name: Upload Android UI test reports
