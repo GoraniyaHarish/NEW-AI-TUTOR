@@ -77,7 +77,7 @@ Personalized Next Step & Study Path
 | Capability | Offline (Local Device) | Online (Connected + Key) |
 | :--- | :---: | :---: |
 | **Material Ingestion & PDF Extraction** | **Full** (Local Room & PdfBox) | **Full** |
-| **BM25 Search & Chunk Indexing** | **Full** (<50ms on-device) | **Full** |
+| **BM25 Search & Chunk Indexing** | **Full** (local lexical search; speed depends on device and library size) | **Full** |
 | **Quiz Generation & Evaluation** | **Full** (Deterministic engine) | **Enhanced** (Dynamic generation) |
 | **Mastery & Prerequisite Tracking** | **Full** (Local database) | **Full** |
 | **Spaced Repetition (SM-2)** | **Full** (Local scheduler) | **Full** |

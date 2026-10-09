@@ -308,6 +308,9 @@ fun ChatMessageBubble(message: ChatMessageEntity) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     Text(
                         text = presentTutorText(message.content),
+                        modifier = Modifier.testTag(
+                            if (isUser) "tutor_user_message" else "tutor_assistant_message"
+                        ),
                         fontSize = 14.sp,
                         color = if (isUser) Color.White else MaterialTheme.colorScheme.onSurface,
                         lineHeight = 20.sp

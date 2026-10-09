@@ -39,21 +39,41 @@ class StudentJourneyInstrumentedTest {
     }
 
     @Test
-    fun studentCanOpenTutorAskAQuestionAndChangeOfflineSetting() {
+    fun studentCanOpenTutorReceiveAReplyAndChangeOfflineSetting() {
         ensureHome()
 
-        // Open tutor and send a real question through the text field.
+        // A real question requires a real course and notes; do not silently test an empty tutor.
+        composeRule.onNodeWithTag("nav_item_courses").performClick()
+        composeRule.onNodeWithTag("fab_create_course").performClick()
+        composeRule.onNodeWithTag("course_name_input").performTextInput("Tutor Test Biology")
+        composeRule.onNodeWithTag("course_description_input")
+            .performTextInput("Course used to verify the tutoring journey.")
+        composeRule.onNodeWithTag("paste_notes_button").performClick()
+        composeRule.onNodeWithTag("custom_notes_title_input").performTextInput("Photosynthesis")
+        composeRule.onNodeWithTag("custom_notes_content_input").performTextInput(
+            "Photosynthesis uses light energy to convert carbon dioxide and water into glucose and oxygen. " +
+                "Chlorophyll absorbs light in chloroplasts."
+        )
+        composeRule.onNodeWithText("Add Notes").performClick()
+        composeRule.onNodeWithTag("build_my_course_submit_button").performClick()
+        composeRule.waitUntil(timeoutMillis = 60_000) {
+            composeRule.onAllNodesWithTag("skill_map_screen").fetchSemanticsNodes().isNotEmpty()
+        }
+
+        // Open tutor, send a question grounded in the newly created notes, and require an assistant reply.
         composeRule.onNodeWithTag("nav_item_tutor").performClick()
         assertTrue(composeRule.onAllNodesWithTag("ai_tutor_screen").fetchSemanticsNodes().isNotEmpty())
         composeRule.onNodeWithTag("tutor_message_input")
-            .performTextInput("Explain the main concepts in my notes.")
+            .performTextInput("What does photosynthesis use to make glucose?")
         composeRule.onNodeWithTag("send_tutor_message_button").performClick()
 
-        composeRule.waitUntil(timeoutMillis = 20_000) {
-            composeRule.onAllNodesWithTag("ai_tutor_screen").fetchSemanticsNodes().isNotEmpty() &&
-                composeRule.onAllNodesWithTag("tutor_message_input").fetchSemanticsNodes().isNotEmpty()
+        composeRule.waitUntil(timeoutMillis = 30_000) {
+            composeRule.onAllNodesWithTag("tutor_assistant_message").fetchSemanticsNodes().isNotEmpty()
         }
-        assertTrue(composeRule.onAllNodesWithText("Explain the main concepts in my notes.").fetchSemanticsNodes().isNotEmpty())
+        assertTrue(
+            "The tutor must render an assistant reply, not just echo the student's question",
+            composeRule.onAllNodesWithTag("tutor_assistant_message").fetchSemanticsNodes().isNotEmpty()
+        )
 
         // Visit profile/settings and toggle offline simulation using the actual UI.
         composeRule.onNodeWithTag("nav_item_profile").performClick()
