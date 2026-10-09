@@ -26,7 +26,7 @@ import org.robolectric.annotation.Config
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [36])
+@Config(sdk = [35])
 class MainViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
