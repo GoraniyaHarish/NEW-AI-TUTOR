@@ -210,42 +210,52 @@ class LocalAIService(
         difficulty: String,
         relevantChunks: List<DocumentChunkEntity>
     ): List<QuestionEntity> = withContext(Dispatchers.Default) {
-        val topChunk = relevantChunks.firstOrNull { it.text.isNotBlank() }
-        if (topChunk == null || topChunk.text.isBlank()) {
-            return@withContext emptyList()
+        if (count <= 0) return@withContext emptyList()
+
+        // Build quiz items only from readable sentences in retrieved source chunks.
+        // If the material does not contain enough distinct statements, return fewer
+        // questions instead of inventing unsupported educational content.
+        val sourceStatements = relevantChunks
+            .filter { it.text.isNotBlank() }
+            .flatMap { chunk ->
+                val sentences = chunk.text
+                    .split(Regex("(?<=[.!?])\\s+"))
+                    .map { it.trim() }
+                    .filter { it.length >= 15 }
+                    .ifEmpty { listOf(chunk.text.trim()).filter { it.isNotBlank() } }
+                sentences.map { sentence -> chunk to sentence }
+            }
+            .distinctBy { (chunk, sentence) -> "${chunk.id}:${sentence.lowercase()}" }
+            .take(count)
+
+        sourceStatements.mapIndexed { index, (evidenceChunk, sourceStatement) ->
+            val snippet = sourceStatement.take(280).trim()
+            val seed = skill.id * 31L + count * 17L + evidenceChunk.id * 7L +
+                difficulty.hashCode() + index * 97L
+            val correctIndex = java.util.Random(seed).nextInt(4)
+
+            val options = mutableListOf(
+                "This detail is not stated in the retrieved passage.",
+                "This statement is unrelated to the retrieved topic.",
+                "This claim is not supported by the retrieved passage."
+            )
+            options.add(correctIndex, snippet)
+
+            QuestionEntity(
+                courseId = skill.courseId,
+                skillId = skill.id,
+                questionText = "According to your notes about '${skill.name}', which statement is supported?",
+                optionA = options[0],
+                optionB = options[1],
+                optionC = options[2],
+                optionD = options[3],
+                correctAnswerIndex = correctIndex,
+                explanation = "The supported statement is taken from page ${evidenceChunk.pageNumber} of ${evidenceChunk.sourceDocumentName}.",
+                difficulty = difficulty,
+                hint = "Review page ${evidenceChunk.pageNumber} in ${evidenceChunk.sourceDocumentName}.",
+                sourceDocumentName = evidenceChunk.sourceDocumentName,
+                sourcePage = evidenceChunk.pageNumber
+            )
         }
-
-        val evidenceChunk = requireNotNull(topChunk)
-        val snippet = topChunk.text.split(Regex("(?<=[.!?])\\s+")).firstOrNull()?.trim() ?: topChunk.text.take(120)
-        
-        // Vary correct answer index deterministically from 0 to 3 using java.util.Random with a deterministic seed
-        val seed = skill.id * 31L + count * 17L + topChunk.id * 7L + difficulty.hashCode()
-        val correctIndex = java.util.Random(seed).nextInt(4)
-
-        val optionsList = mutableListOf(
-            "An unrelated concept from an out-of-scope chapter.",
-            "A contradictory statement explicitly disproven in the text.",
-            "A hypothetical theorem with no empirical grounding."
-        )
-        // Deterministically insert snippet at correctIndex
-        optionsList.add(correctIndex, snippet)
-
-        val q1 = QuestionEntity(
-            courseId = skill.courseId,
-            skillId = skill.id,
-            questionText = "According to document '${evidenceChunk.sourceDocumentName}' (Page ${evidenceChunk.pageNumber}), which statement accurately reflects '${skill.name}'?",
-            optionA = optionsList[0],
-            optionB = optionsList[1],
-            optionC = optionsList[2],
-            optionD = optionsList[3],
-            correctAnswerIndex = correctIndex,
-            explanation = "Verified directly from page ${evidenceChunk.pageNumber} of ${evidenceChunk.sourceDocumentName}.",
-            difficulty = difficulty,
-            hint = "Check page ${evidenceChunk.pageNumber} in ${evidenceChunk.sourceDocumentName}.",
-            sourceDocumentName = evidenceChunk.sourceDocumentName,
-            sourcePage = evidenceChunk.pageNumber
-        )
-
-        listOf(q1).take(count)
     }
 }
