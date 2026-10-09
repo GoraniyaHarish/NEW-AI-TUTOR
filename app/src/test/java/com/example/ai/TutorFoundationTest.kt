@@ -512,4 +512,35 @@ class TutorFoundationTest {
         assertEquals(q1.optionC, q2.optionC)
         assertEquals(q1.optionD, q2.optionD)
     }
+    @Test
+    fun `local quiz returns distinct questions grounded in available source statements`() = runBlocking {
+        val localAI = LocalAIService()
+        val chunk = DocumentChunkEntity(
+            id = 701,
+            documentId = 9,
+            courseId = 3,
+            sourceDocumentName = "OOP_Notes.pdf",
+            pageNumber = 12,
+            chunkIndex = 0,
+            text = "Inheritance allows code reuse. Subclasses inherit fields and methods. Java uses the extends keyword for class inheritance."
+        )
+        val skill = SkillEntity(
+            id = 81,
+            courseId = 3,
+            name = "Inheritance",
+            description = "Inheritance in object-oriented programming",
+            chapter = "OOP"
+        )
+
+        val questions = localAI.generateQuestionsForSkill(skill, 2, "MEDIUM", listOf(chunk))
+
+        assertEquals(2, questions.size)
+        assertTrue(questions.all { it.sourceDocumentName == "OOP_Notes.pdf" && it.sourcePage == 12 })
+        val correctAnswers = questions.map { question ->
+            listOf(question.optionA, question.optionB, question.optionC, question.optionD)[question.correctAnswerIndex]
+        }
+        assertEquals(2, correctAnswers.distinct().size)
+        assertTrue(correctAnswers.all { it.contains("Inheritance") || it.contains("Subclasses") || it.contains("Java") })
+    }
+
 }
