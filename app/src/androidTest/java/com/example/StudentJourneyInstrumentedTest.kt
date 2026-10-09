@@ -1,11 +1,10 @@
 package com.example
 
-import androidx.compose.ui.test.assertExists
-import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -36,7 +35,7 @@ class StudentJourneyInstrumentedTest {
         composeRule.waitUntil(timeoutMillis = 30_000) {
             composeRule.onAllNodesWithTag("home_screen").fetchSemanticsNodes().isNotEmpty()
         }
-        composeRule.onNodeWithTag("home_screen").assertExists()
+        assertTrue(composeRule.onAllNodesWithTag("home_screen").fetchSemanticsNodes().isNotEmpty())
     }
 
     @Test
@@ -45,7 +44,7 @@ class StudentJourneyInstrumentedTest {
 
         // Open tutor and send a real question through the text field.
         composeRule.onNodeWithTag("nav_item_tutor").performClick()
-        composeRule.onNodeWithTag("ai_tutor_screen").assertExists()
+        assertTrue(composeRule.onAllNodesWithTag("ai_tutor_screen").fetchSemanticsNodes().isNotEmpty())
         composeRule.onNodeWithTag("tutor_message_input")
             .performTextInput("Explain the main concepts in my notes.")
         composeRule.onNodeWithTag("send_tutor_message_button").performClick()
@@ -54,19 +53,19 @@ class StudentJourneyInstrumentedTest {
             composeRule.onAllNodesWithTag("ai_tutor_screen").fetchSemanticsNodes().isNotEmpty() &&
                 composeRule.onAllNodesWithTag("tutor_message_input").fetchSemanticsNodes().isNotEmpty()
         }
-        composeRule.onNodeWithText("Explain the main concepts in my notes.").assertExists()
+        assertTrue(composeRule.onAllNodesWithText("Explain the main concepts in my notes.").fetchSemanticsNodes().isNotEmpty())
 
         // Visit profile/settings and toggle offline simulation using the actual UI.
         composeRule.onNodeWithTag("nav_item_profile").performClick()
         composeRule.onNodeWithTag("profile_settings_tile").performClick()
-        composeRule.onNodeWithTag("settings_screen").assertExists()
+        assertTrue(composeRule.onAllNodesWithTag("settings_screen").fetchSemanticsNodes().isNotEmpty())
         composeRule.onNodeWithTag("offline_simulation_switch").performClick()
-        composeRule.onNodeWithTag("settings_screen").assertExists()
+        assertTrue(composeRule.onAllNodesWithTag("settings_screen").fetchSemanticsNodes().isNotEmpty())
 
         // Return to tutor and verify the screen remains navigable after changing the setting.
         composeRule.activityRule.scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
         composeRule.onNodeWithTag("nav_item_tutor").performClick()
-        composeRule.onNodeWithTag("ai_tutor_screen").assertExists()
+        assertTrue(composeRule.onAllNodesWithTag("ai_tutor_screen").fetchSemanticsNodes().isNotEmpty())
     }
 
     @Test
@@ -74,9 +73,9 @@ class StudentJourneyInstrumentedTest {
         ensureHome()
 
         composeRule.onNodeWithTag("nav_item_courses").performClick()
-        composeRule.onNodeWithTag("course_list_screen").assertExists()
+        assertTrue(composeRule.onAllNodesWithTag("course_list_screen").fetchSemanticsNodes().isNotEmpty())
         composeRule.onNodeWithTag("fab_create_course").performClick()
-        composeRule.onNodeWithTag("build_my_course_screen").assertExists()
+        assertTrue(composeRule.onAllNodesWithTag("build_my_course_screen").fetchSemanticsNodes().isNotEmpty())
 
         composeRule.onNodeWithTag("course_name_input").performTextInput("Student Biology")
         composeRule.onNodeWithTag("course_description_input")
@@ -97,6 +96,6 @@ class StudentJourneyInstrumentedTest {
         composeRule.waitUntil(timeoutMillis = 60_000) {
             composeRule.onAllNodesWithTag("skill_map_screen").fetchSemanticsNodes().isNotEmpty()
         }
-        composeRule.onNodeWithTag("skill_map_screen").assertExists()
+        assertTrue(composeRule.onAllNodesWithTag("skill_map_screen").fetchSemanticsNodes().isNotEmpty())
     }
 }
