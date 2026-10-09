@@ -10,6 +10,18 @@
 
 ---
 
+## Download and Try LearnMate
+
+**Want to install the Android app without building it yourself?**
+
+- **[Download the latest APK](https://github.com/GoraniyaHarish/NEW-AI-TUTOR/releases/latest/download/app-debug.apk)** — download the APK to an Android device and open it to install.
+- **[View all releases](https://github.com/GoraniyaHarish/NEW-AI-TUTOR/releases)** — see available builds and release notes.
+- **[Check build and test status](https://github.com/GoraniyaHarish/NEW-AI-TUTOR/actions/workflows/android.yml)** — the APK is published automatically after the main-branch CI build and tests succeed.
+
+> **Testing build:** The downloadable APK is a debug build intended for demonstrations and testing, not a Play Store production release. Android may ask you to allow installation from your browser or file manager. Only install APKs you trust. If the download link is not available yet, check the Actions page for the latest build status.
+
+---
+
 ## Why LearnMate?
 
 Students often face major challenges with generic online learning tools:
