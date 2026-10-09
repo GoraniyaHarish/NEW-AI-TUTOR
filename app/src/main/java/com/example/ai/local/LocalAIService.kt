@@ -40,6 +40,25 @@ class LocalAIService(
         val topChunk = relevantChunks.firstOrNull()
         val hasEvidence = topChunk != null && topChunk.text.isNotBlank()
 
+        // A skill record is metadata, not retrieved evidence. Never answer or cite as
+        // document-grounded when retrieval returned no readable passage.
+        if (!hasEvidence) {
+            val missingAnswer = buildString {
+                append("I couldn't find a relevant passage in your uploaded study materials for this question.\\n\\n")
+                append("Offline mode currently uses local document search and structured tutoring; an on-device neural model is not installed.\\n\\n")
+                append("Try asking about a topic covered in your imported notes, or connect to Cloud AI for questions beyond those materials.")
+            }
+            return@withContext TutorResponse(
+                answer = missingAnswer,
+                sourceDocName = null,
+                sourcePage = null,
+                isOffline = true,
+                confidence = 0.5f,
+                isGroundedInMaterial = false,
+                modelUsed = "offline-knowledge-base"
+            )
+        }
+
         // 1. If an actual neural on-device model is installed and ready, execute inference
         if (localModelEngine.isModelAvailable) {
             val contextText = relevantChunks.joinToString("\n\n") { it.text }
@@ -58,27 +77,9 @@ class LocalAIService(
             }
         }
 
-        // 2. Truthful Local Tutor using student's indexed material
-        if (!hasEvidence && (skill == null || skill.description.isBlank())) {
-            val missingAnswer = buildString {
-                append("This topic wasn't found in your uploaded study materials.\n\n")
-                append("Because you are offline and an on-device neural model is not installed, I can only explain concepts directly present in your saved course notes.\n\n")
-                append("💡 **Tip:** When you connect to the internet, Cloud AI can answer general questions outside your notes. Or you can ask about any topic from your imported material.")
-            }
-            return@withContext TutorResponse(
-                answer = missingAnswer,
-                sourceDocName = null,
-                sourcePage = null,
-                isOffline = true,
-                confidence = 0.5f,
-                isGroundedInMaterial = false,
-                modelUsed = "offline-knowledge-base"
-            )
-        }
-
-        // 3. Grounded explanation constructed directly from student's material
+        // 2. Grounded explanation constructed directly from retrieved material
         val topicTitle = skill?.name ?: "Topic from ${topChunk?.sourceDocumentName ?: "your notes"}"
-        val materialText = topChunk?.text ?: skill?.description ?: ""
+        val materialText = topChunk!!.text
 
         val responseText = buildString {
             when (analyzed.intent) {
@@ -139,13 +140,13 @@ class LocalAIService(
                 }
             }
 
-            append("\n\n*(Grounded in your offline notes from ${topChunk?.sourceDocumentName ?: skill?.sourceDocumentName}. On-device neural model not installed; showing structured offline notes analysis.)*")
+            append("\n\n*(Based on retrieved passage from ${topChunk.sourceDocumentName}, page ${topChunk.pageNumber}. On-device neural model not installed; showing structured offline notes analysis.)*")
         }
 
         TutorResponse(
             answer = responseText,
-            sourceDocName = topChunk?.sourceDocumentName ?: skill?.sourceDocumentName,
-            sourcePage = topChunk?.pageNumber ?: skill?.sourcePage,
+            sourceDocName = topChunk.sourceDocumentName,
+            sourcePage = topChunk.pageNumber,
             isOffline = true,
             confidence = 0.92f,
             isGroundedInMaterial = true,
