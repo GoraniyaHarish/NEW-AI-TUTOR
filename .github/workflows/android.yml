@@ -32,7 +32,7 @@ jobs:
           packages: platform-tools platforms;android-36 build-tools;36.0.0
 
       - name: Run unit tests
-        run: ./gradlew :app:testDebugUnitTest --stacktrace
+        run: bash ./gradlew :app:testDebugUnitTest --stacktrace
 
       - name: Build debug APK
-        run: ./gradlew :app:assembleDebug --stacktrace
+        run: bash ./gradlew :app:assembleDebug --stacktrace
