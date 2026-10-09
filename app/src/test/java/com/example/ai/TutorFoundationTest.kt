@@ -115,6 +115,33 @@ class TutorFoundationTest {
     }
 
     @Test
+    fun `skill metadata alone never counts as retrieved evidence`() = runBlocking {
+        val localTutor = LocalAIService()
+        val skill = SkillEntity(
+            id = 77,
+            courseId = 1,
+            name = "Inheritance",
+            description = "A subclass inherits fields and methods from a superclass.",
+            chapter = "OOP",
+            sourceDocumentName = "OldNotes.pdf",
+            sourcePage = 12
+        )
+
+        val response = localTutor.answerTutor(
+            query = "Explain inheritance",
+            skill = skill,
+            relevantChunks = emptyList(),
+            courseId = 1
+        )
+
+        assertFalse(response.isGroundedInMaterial)
+        assertNull(response.sourceDocName)
+        assertNull(response.sourcePage)
+        assertTrue(response.answer.contains("couldn't find a relevant passage"))
+        assertFalse(response.answer.contains("A subclass inherits fields"))
+    }
+
+    @Test
     fun `local tutor generates honest explanation for arbitrary subject without hardcoded physics`() = runBlocking {
         val localTutor = LocalAIService()
         val chunk = DocumentChunkEntity(
