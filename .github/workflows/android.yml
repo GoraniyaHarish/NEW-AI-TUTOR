@@ -34,7 +34,19 @@ jobs:
       - name: Run unit tests
         run: bash ./gradlew :app:testDebugUnitTest --stacktrace
 
-      - name: Upload unit test reports
+      - name: Run student journey UI tests on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          script: |
+            adb shell pm clear com.learnmate.app || true
+            bash ./gradlew :app:connectedDebugAndroidTest --stacktrace
+
+      - name: Upload unit and emulator test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -42,8 +54,18 @@ jobs:
           path: |
             app/build/reports/tests/testDebugUnitTest/
             app/build/test-results/testDebugUnitTest/
+            app/build/reports/androidTests/connected/
+            app/build/outputs/androidTest-results/connected/
           if-no-files-found: warn
           retention-days: 7
 
       - name: Build debug APK
         run: bash ./gradlew :app:assembleDebug --stacktrace
+
+      - name: Upload installable debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: learnmate-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
