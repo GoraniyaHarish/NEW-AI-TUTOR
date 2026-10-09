@@ -1,9 +1,6 @@
 package com.example.ai.local
 
 import android.content.Context
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,8 +25,6 @@ data class NeuralModelInfo(
 
 class OnDeviceModelManager(private val context: Context) {
 
-    private val scope = CoroutineScope(Dispatchers.IO)
-    private var downloadJob: Job? = null
 
     val availableModel = NeuralModelInfo(
         id = "gemma_2b_it_int4",
@@ -62,8 +57,6 @@ class OnDeviceModelManager(private val context: Context) {
     }
 
     fun cancelDownload() {
-        downloadJob?.cancel()
-        downloadJob = null
         _downloadState.value = ModelDownloadState.NotDownloaded
     }
 
