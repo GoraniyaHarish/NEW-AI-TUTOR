@@ -89,7 +89,7 @@ fun QuizScreen(
             } else {
                 val claim = question.questionText
                     .removePrefix("Your notes say:")
-                    .substringBefore("\\n\\nIs this fact stated in the source?")
+                    .substringBefore("\n\nIs this fact stated in the source?")
                     .trim()
                     .trim('"')
                 val supported = "Explicitly supported by the material"
@@ -100,7 +100,7 @@ fun QuizScreen(
                     "Only implied, not directly stated"
                 ).shuffled(java.util.Random(question.id))
                 question.copy(
-                    questionText = "What evidence status best describes this claim in the source?\\n\\n\\\"$claim\\\"",
+                    questionText = "What evidence status best describes this claim in the source?\n\n\"$claim\"",
                     optionA = options[0],
                     optionB = options[1],
                     optionC = options[2],
