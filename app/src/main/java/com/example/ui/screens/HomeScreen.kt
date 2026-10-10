@@ -23,20 +23,27 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,6 +53,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.data.local.entity.SkillEntity
+import com.example.data.local.entity.DocumentEntity
 import com.example.ui.viewmodel.MainViewModel
 import java.util.Calendar
 
@@ -69,6 +77,8 @@ fun HomeScreen(
     val skills by viewModel.skills.collectAsState()
     val learnerSkills by viewModel.learnerSkills.collectAsState()
     val documents by viewModel.documents.collectAsState()
+    var documentPendingDeletion by remember { mutableStateOf<DocumentEntity?>(null) }
+    var documentRemovalError by remember { mutableStateOf<String?>(null) }
     val assessed = learnerSkills.filter { it.attempts > 0 }
     val mastery = assessed.takeIf { it.isNotEmpty() }?.map { it.masteryScore }?.average()?.toInt()
     val greeting = when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
@@ -187,6 +197,51 @@ fun HomeScreen(
 
         if (activeCourse != null) {
             item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    Text("Your documents", style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        "Remove source files you no longer want. Removing one rebuilds generated topics and quizzes from the remaining material and resets course practice history.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (documents.isEmpty()) {
+                        Text("No documents added to this course yet.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            items(documents, key = { "document-${it.id}" }) { document ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Description, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(document.fileName, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                "${document.fileType} · ${document.pageCount} page(s) · ${if (document.processed) "Processed" else "Not processed"}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        IconButton(
+                            onClick = { documentPendingDeletion = document },
+                            modifier = Modifier.testTag("delete_document_${document.id}")
+                        ) {
+                            Icon(Icons.Default.Delete, contentDescription = "Remove ${document.fileName}", tint = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+            }
+        }
+
+        if (activeCourse != null) {
+            item {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                     Column {
                         Text("Your next steps", style = MaterialTheme.typography.titleLarge)
@@ -241,6 +296,41 @@ fun HomeScreen(
             }
         }
         item { Spacer(Modifier.height(8.dp)) }
+    }
+
+    documentPendingDeletion?.let { document ->
+        AlertDialog(
+            onDismissRequest = { documentPendingDeletion = null },
+            title = { Text("Remove document?") },
+            text = {
+                Text("Remove “${document.fileName}” from this course? Topics, quizzes, chat history, and practice progress generated from the current course material will be reset, then rebuilt from the remaining documents.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    documentPendingDeletion = null
+                    viewModel.deleteDocument(
+                        documentId = document.id,
+                        onFailure = { message -> documentRemovalError = message }
+                    )
+                }) {
+                    Text("Remove", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { documentPendingDeletion = null }) { Text("Cancel") }
+            }
+        )
+    }
+
+    documentRemovalError?.let { message ->
+        AlertDialog(
+            onDismissRequest = { documentRemovalError = null },
+            title = { Text("Could not remove document") },
+            text = { Text(message) },
+            confirmButton = {
+                TextButton(onClick = { documentRemovalError = null }) { Text("OK") }
+            }
+        )
     }
 }
 
