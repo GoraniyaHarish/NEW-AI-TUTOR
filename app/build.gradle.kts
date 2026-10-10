@@ -15,18 +15,23 @@ android {
     applicationId = "com.learnmate.app"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    // CI passes a monotonically increasing version code so later APKs can update
+    // earlier installations instead of being treated as the same/older build.
+    val ciVersionCode = providers.gradleProperty("VERSION_CODE").orNull?.toIntOrNull() ?: 1
+    versionCode = ciVersionCode
+    versionName = "1.0.$ciVersionCode"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
   signingConfigs {
     create("release") {
+      // CI supplies a persistent private keystore through GitHub Actions secrets.
+      // Never generate a new release key per build: updates must retain the same signer.
       val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
       storeFile = file(keystorePath)
       storePassword = System.getenv("STORE_PASSWORD")
-      keyAlias = "upload"
+      keyAlias = System.getenv("KEY_ALIAS") ?: "upload"
       keyPassword = System.getenv("KEY_PASSWORD")
     }
   }
