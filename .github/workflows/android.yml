@@ -32,12 +32,11 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           if [ -z "${GEMINI_API_KEY:-}" ]; then
-            echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::GEMINI_API_KEY is not configured. The release APK can build, but online AI will use the offline fallback until the secret is added."
-          else
-            echo "configured=true" >> "$GITHUB_OUTPUT"
-            echo "Direct Gemini API key is available to the Gradle build."
+            echo "::error::GEMINI_API_KEY is required for an online-AI prototype release. Add it under Settings > Secrets and variables > Actions, then rerun the workflow."
+            exit 1
           fi
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+          echo "Direct Gemini API key is available to the Gradle build."
       - name: Validate release-signing secrets and decode persistent keystore
         id: release_signing
         env:
