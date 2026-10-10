@@ -1,6 +1,7 @@
 package com.example.ai.cloud
 
 import android.content.Context
+import android.util.Log
 import com.google.firebase.FirebaseApp
 import com.google.firebase.ai.FirebaseAI
 import com.google.firebase.ai.type.GenerativeBackend
@@ -22,12 +23,10 @@ import org.json.JSONObject
 
 open class CloudAIService(private val context: Context? = null) : AIService {
 
-    // Officially supported production Gemini models from Google AI Gemini specifications
-    // Primary: gemini-3.5-flash-lite (fast, low latency)
-    // Fallback: gemini-3.5-flash
+    // Prefer the current stable fast model; retain a broadly available lightweight fallback.
     private val candidateModels = listOf(
-        "gemini-3.5-flash-lite",
-        "gemini-3.5-flash"
+        "gemini-3.8-flash",
+        "gemini-3.5-flash-lite"
     )
 
     open fun isConfigured(): Boolean {
@@ -312,8 +311,11 @@ open class CloudAIService(private val context: Context? = null) : AIService {
         for (model in candidateModels) {
             try {
                 val text = callFirebaseAI(model, payload)
+                Log.i(TAG, "Firebase AI request succeeded with model $model")
                 return Pair(text, model)
             } catch (e: Exception) {
+                Log.e(TAG, "Firebase AI request failed with model $model", e)
+                lastException?.addSuppressed(e)
                 lastException = e
             }
         }
@@ -340,5 +342,9 @@ open class CloudAIService(private val context: Context? = null) : AIService {
         val model = FirebaseAI.getInstance(backend = GenerativeBackend.googleAI()).generativeModel(modelName)
         return model.generateContent(prompt).text
             ?: throw IllegalStateException("Firebase AI Logic returned an empty response.")
+    }
+
+    private companion object {
+        const val TAG = "LearnMateCloudAI"
     }
 }
