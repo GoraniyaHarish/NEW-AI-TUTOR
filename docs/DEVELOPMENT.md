@@ -46,7 +46,6 @@ The compiled APK will be generated at:
    - `ANDROID_STORE_PASSWORD`: the keystore password
    - `ANDROID_KEY_ALIAS`: `upload` (or the alias you chose)
    - `ANDROID_KEY_PASSWORD`: the key password
-   - `GOOGLE_SERVICES_JSON`: the complete contents of the Firebase Android app's `google-services.json`, package name `com.learnmate.app`
 5. In Google AI Studio, create a restricted Gemini API key for prototype testing and set it as the GitHub Actions secret `GEMINI_API_KEY`. Do not commit it. Remember that keys embedded in APKs can be extracted; use a backend proxy before public production distribution.
 
 After these one-time steps, pushes to `main` run unit tests and build the APK. If all signing secrets are valid, GitHub Releases publishes `learnmate.apk` as a production-signed APK. The workflow fails if signing secrets are absent or incomplete rather than publishing an APK with an unexpected signature. If `GEMINI_API_KEY` is absent, local/offline features still build but online tutoring will fall back to the local tutor. CI increments the Android version code per workflow run.
