@@ -66,5 +66,5 @@ If either command fails, record the actual failure and resolve it before describ
 2. Run the unit-test suite and debug build on the current commit.
 3. Test PDF ingestion and grounded tutoring with real study documents from more than one subject.
 4. Improve offline quiz distractors using retrieved course content.
-5. Configure Firebase AI Logic, register Play Integrity, and verify real cloud requests on a configured app/device.
+5. Verify direct Gemini API requests on a configured device; for production, move API credentials behind a controlled backend rather than embedding a long-lived secret in the APK.
 6. Integrate an on-device inference runtime only after selecting a model, licensing terms, device-memory targets, download integrity checks, and a measurable APK/app-storage strategy.
