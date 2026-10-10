@@ -18,14 +18,10 @@ android {
     versionCode = ciVersionCode
     versionName = "1.0.$ciVersionCode"
 
-    // Prototype direct Gemini API key: use a Gradle property, environment variable, or local.properties.
-    val localSecretProperties = java.util.Properties().apply {
-      val secretsFile = rootProject.file("local.properties")
-      if (secretsFile.exists()) secretsFile.inputStream().use { load(it) }
-    }
+    // Prototype direct Gemini API key: use a Gradle property or environment variable.
     val geminiApiKey = providers.gradleProperty("GEMINI_API_KEY")
       .orElse(providers.environmentVariable("GEMINI_API_KEY"))
-      .orElse(localSecretProperties.getProperty("GEMINI_API_KEY") ?: "")
+      .orElse("")
       .get()
     buildConfigField("String", "GEMINI_API_KEY", "\"${geminiApiKey}\"")
 

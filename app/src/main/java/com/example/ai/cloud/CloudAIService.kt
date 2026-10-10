@@ -163,7 +163,7 @@ open class CloudAIService(private val context: Context? = null) : AIService {
         relevantChunks: List<DocumentChunkEntity>
     ): LessonExplanation = withContext(Dispatchers.IO) {
         if (!isConfigured()) {
-            throw IllegalStateException("Firebase AI Logic is not configured for this app.")
+            throw IllegalStateException("Direct Gemini API key is missing. Add GEMINI_API_KEY to the build configuration.")
         }
 
         val topChunk = relevantChunks.firstOrNull()
