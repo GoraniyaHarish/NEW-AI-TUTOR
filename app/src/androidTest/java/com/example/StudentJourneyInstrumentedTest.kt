@@ -64,6 +64,13 @@ class StudentJourneyInstrumentedTest {
             composeRule.onAllNodesWithTag("skill_map_screen").fetchSemanticsNodes().isNotEmpty()
         }
 
+        // Course creation opens the skill map, where bottom navigation is intentionally hidden.
+        // Return to the Courses tab before using the main bottom-navigation Tutor item.
+        composeRule.activityRule.scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+        composeRule.waitUntil(timeoutMillis = 15_000) {
+            composeRule.onAllNodesWithTag("course_list_screen").fetchSemanticsNodes().isNotEmpty()
+        }
+
         // Open tutor, send a question grounded in the newly created notes, and require an assistant reply.
         composeRule.onNodeWithTag("nav_item_tutor").performClick()
         assertTrue(composeRule.onAllNodesWithTag("ai_tutor_screen").fetchSemanticsNodes().isNotEmpty())
