@@ -283,47 +283,49 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun submitDiagnosticAssessment(courseId: Long, onDone: () -> Unit) {
         viewModelScope.launch {
-            val qs = database.questionDao().getQuestionsSync(courseId)
-            val answers = _diagnosticAnswers.value
-            val hints = _diagnosticHintsUsed.value
+            withContext(Dispatchers.IO) {
+                val qs = database.questionDao().getQuestionsSync(courseId)
+                val answers = _diagnosticAnswers.value
+                val hints = _diagnosticHintsUsed.value
 
-            // Group questions by skill and update learner skills
-            val questionsBySkill = qs.groupBy { it.skillId }
-            for ((skillId, skillQuestions) in questionsBySkill) {
-                var correct = 0
-                var hintsCount = 0
-                for (q in skillQuestions) {
-                    if (answers[q.id] == q.correctAnswerIndex) correct++
-                    if (hints[q.id] == true) hintsCount++
+                // Keep synchronous Room reads/writes off the UI thread.
+                val questionsBySkill = qs.groupBy { it.skillId }
+                for ((skillId, skillQuestions) in questionsBySkill) {
+                    var correct = 0
+                    var hintsCount = 0
+                    for (q in skillQuestions) {
+                        if (answers[q.id] == q.correctAnswerIndex) correct++
+                        if (hints[q.id] == true) hintsCount++
+                    }
+
+                    val current = database.learnerSkillDao().getLearnerSkill(skillId)
+                    val prevMastery = current?.masteryScore ?: 0
+                    val isFirst = current == null || current.attempts == 0
+                    val result = MasteryCalculator.calculateUpdatedMastery(
+                        previousMastery = prevMastery,
+                        totalQuestions = skillQuestions.size,
+                        correctAnswers = correct,
+                        hintsUsed = hintsCount,
+                        isFirstAttempt = isFirst
+                    )
+
+                    database.learnerSkillDao().upsertLearnerSkill(
+                        LearnerSkillEntity(
+                            skillId = skillId,
+                            courseId = courseId,
+                            masteryScore = result.newMastery,
+                            confidence = 0.85f,
+                            attempts = (current?.attempts ?: 0) + 1,
+                            correctAnswers = (current?.correctAnswers ?: 0) + correct,
+                            incorrectAnswers = (current?.incorrectAnswers ?: 0) + (skillQuestions.size - correct),
+                            hintsUsed = (current?.hintsUsed ?: 0) + hintsCount,
+                            lastPracticed = System.currentTimeMillis()
+                        )
+                    )
                 }
 
-                val current = database.learnerSkillDao().getLearnerSkill(skillId)
-                val prevMastery = current?.masteryScore ?: 0
-                val isFirst = current == null || current.attempts == 0
-                val result = MasteryCalculator.calculateUpdatedMastery(
-                    previousMastery = prevMastery,
-                    totalQuestions = skillQuestions.size,
-                    correctAnswers = correct,
-                    hintsUsed = hintsCount,
-                    isFirstAttempt = isFirst
-                )
-
-                database.learnerSkillDao().upsertLearnerSkill(
-                    LearnerSkillEntity(
-                        skillId = skillId,
-                        courseId = courseId,
-                        masteryScore = result.newMastery,
-                        confidence = 0.85f,
-                        attempts = (current?.attempts ?: 0) + 1,
-                        correctAnswers = (current?.correctAnswers ?: 0) + correct,
-                        incorrectAnswers = (current?.incorrectAnswers ?: 0) + (skillQuestions.size - correct),
-                        hintsUsed = (current?.hintsUsed ?: 0) + hintsCount,
-                        lastPracticed = System.currentTimeMillis()
-                    )
-                )
+                repository.refreshLearningPlan(courseId)
             }
-
-            repository.refreshLearningPlan(courseId)
             _diagnosticAnswers.value = emptyMap()
             _diagnosticHintsUsed.value = emptyMap()
             onDone()
@@ -339,58 +341,60 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         onResultReady: (Int, Int, Int, Int) -> Unit
     ) {
         viewModelScope.launch {
-            val skill = database.skillDao().getSkillById(skillId) ?: return@launch
-            val current = database.learnerSkillDao().getLearnerSkill(skillId)
-            val prevMastery = current?.masteryScore ?: 0
-            val isFirst = current == null || current.attempts == 0
+            val result = withContext(Dispatchers.IO) {
+                val skill = database.skillDao().getSkillById(skillId) ?: return@withContext null
+                val current = database.learnerSkillDao().getLearnerSkill(skillId)
+                val prevMastery = current?.masteryScore ?: 0
+                val isFirst = current == null || current.attempts == 0
 
-            val eval = QuizEvaluator.evaluateQuiz(
-                questions = questions,
-                userAnswers = userAnswers,
-                hintsUsedMap = hintsUsedMap,
-                previousMastery = prevMastery,
-                currentStreak = current?.streak ?: 0,
-                isFirstAttempt = isFirst
-            )
-            _lastQuizEvaluation.value = eval
-
-            // Update LearnerSkill in DB
-            database.learnerSkillDao().upsertLearnerSkill(
-                LearnerSkillEntity(
-                    skillId = skillId,
-                    courseId = courseId,
-                    masteryScore = eval.masteryResult.newMastery,
-                    confidence = 0.90f,
-                    attempts = (current?.attempts ?: 0) + 1,
-                    correctAnswers = (current?.correctAnswers ?: 0) + eval.correctCount,
-                    incorrectAnswers = (current?.incorrectAnswers ?: 0) + eval.incorrectCount,
-                    hintsUsed = (current?.hintsUsed ?: 0) + eval.hintsUsedCount,
-                    lastPracticed = System.currentTimeMillis(),
-                    streak = eval.masteryResult.streak
+                val eval = QuizEvaluator.evaluateQuiz(
+                    questions = questions,
+                    userAnswers = userAnswers,
+                    hintsUsedMap = hintsUsedMap,
+                    previousMastery = prevMastery,
+                    currentStreak = current?.streak ?: 0,
+                    isFirstAttempt = isFirst
                 )
-            )
 
-            // Record Quiz Attempt
-            repository.recordQuizAttempt(
-                QuizAttemptEntity(
-                    courseId = courseId,
-                    skillId = skillId,
-                    skillName = skill.name,
-                    score = eval.correctCount,
-                    totalQuestions = eval.totalQuestions,
-                    beforeMastery = prevMastery,
-                    afterMastery = eval.masteryResult.newMastery,
-                    summaryText = eval.masteryResult.whatChangedSummary,
-                    hintsUsedCount = eval.hintsUsedCount
+                database.learnerSkillDao().upsertLearnerSkill(
+                    LearnerSkillEntity(
+                        skillId = skillId,
+                        courseId = courseId,
+                        masteryScore = eval.masteryResult.newMastery,
+                        confidence = 0.90f,
+                        attempts = (current?.attempts ?: 0) + 1,
+                        correctAnswers = (current?.correctAnswers ?: 0) + eval.correctCount,
+                        incorrectAnswers = (current?.incorrectAnswers ?: 0) + eval.incorrectCount,
+                        hintsUsed = (current?.hintsUsed ?: 0) + eval.hintsUsedCount,
+                        lastPracticed = System.currentTimeMillis(),
+                        streak = eval.masteryResult.streak
+                    )
                 )
-            )
 
-            repository.refreshLearningPlan(courseId)
+                repository.recordQuizAttempt(
+                    QuizAttemptEntity(
+                        courseId = courseId,
+                        skillId = skillId,
+                        skillName = skill.name,
+                        score = eval.correctCount,
+                        totalQuestions = eval.totalQuestions,
+                        beforeMastery = prevMastery,
+                        afterMastery = eval.masteryResult.newMastery,
+                        summaryText = eval.masteryResult.whatChangedSummary,
+                        hintsUsedCount = eval.hintsUsedCount
+                    )
+                )
+
+                repository.refreshLearningPlan(courseId)
+                Triple(eval, skill.name, prevMastery)
+            } ?: return@launch
+
+            _lastQuizEvaluation.value = result.first
             onResultReady(
-                eval.correctCount,
-                eval.totalQuestions,
-                prevMastery,
-                eval.masteryResult.newMastery
+                result.first.correctCount,
+                result.first.totalQuestions,
+                result.third,
+                result.first.masteryResult.newMastery
             )
         }
     }
