@@ -27,6 +27,33 @@ Using the Gradle wrapper:
 The compiled APK will be generated at:
 `app/build/outputs/apk/debug/app-debug.apk`
 
+## 4. One-time setup for public, signed GitHub APKs
+
+1. On your trusted Windows development PC, run this in PowerShell from a private folder (with JDK/keytool installed). Choose a strong keystore password and key password when prompted:
+   ```powershell
+   keytool -genkeypair -v -keystore learnmate-release.jks -alias upload -keyalg RSA -keysize 2048 -validity 10000
+   ```
+2. Back up `learnmate-release.jks` and its passwords somewhere secure. Losing the key means you cannot sign compatible updates to this APK. Never commit the keystore or send it in chat.
+3. Print the certificate fingerprint and copy the SHA-256 value:
+   ```powershell
+   keytool -list -v -keystore learnmate-release.jks -alias upload
+   ```
+4. In GitHub, open **Settings → Secrets and variables → Actions → New repository secret** and add:
+   - `ANDROID_KEYSTORE_BASE64`: run the following in PowerShell and copy the output (keep the keystore private):
+     ```powershell
+     [Convert]::ToBase64String([IO.File]::ReadAllBytes("$PWD\learnmate-release.jks")) | Set-Clipboard
+     ```
+   - `ANDROID_STORE_PASSWORD`: the keystore password
+   - `ANDROID_KEY_ALIAS`: `upload` (or the alias you chose)
+   - `ANDROID_KEY_PASSWORD`: the key password
+   - `GOOGLE_SERVICES_JSON`: the complete contents of the Firebase Android app's `google-services.json`, package name `com.learnmate.app`
+5. In Firebase Console → **Security → App Check → Apps**, register the app with **Play Integrity** and add the release certificate's SHA-256 fingerprint. In Google Play Console, link the Play Integrity API to the same Google Cloud/Firebase project. For an app distributed exclusively outside Google Play, configure the Play Integrity advanced settings accordingly: do not require `PLAY_RECOGNIZED` or `LICENSED`; use the recommended device-integrity requirement.
+6. Ensure Firebase Console → **AI Logic** is configured for the intended Gemini backend and App Check is enabled for Firebase AI Logic.
+
+After these one-time steps, pushes to `main` run unit tests and build the APK. If all signing secrets are valid, GitHub Releases publishes `learnmate.apk` as a production-signed APK; the workflow deliberately falls back to a debug/testing APK if signing secrets are completely absent. A partially configured signing setup fails rather than silently publishing an incorrectly signed release. CI increments the Android version code per workflow run.
+
+**Important for the first transition:** the old debug APK and the production-signed APK have different signing certificates. Android will not install the production APK as an in-place update over the debug APK. Back up any local study data and uninstall the old debug build once before installing the first signed release. Later releases signed with the same keystore can update normally.
+
 ## 4. Test Suite Coverage
 
 The project includes thorough JVM unit and Robolectric tests covering all core systems:
