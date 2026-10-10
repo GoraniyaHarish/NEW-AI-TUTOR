@@ -254,26 +254,34 @@ class LocalAIService(
 
         sourceStatements.mapIndexed { index, (evidenceChunk, sourceStatement) ->
             val statement = sourceStatement.take(280).trim()
+            // Offline fallback must always supply four distinct, non-empty options.
+            // Since the claim is extracted verbatim from the source, ask learners to
+            // classify its evidence status instead of pretending we generated a
+            // subject-matter MCQ or randomly marking a quoted fact as false.
+            val correctLabel = "Explicitly supported by the material"
+            val distractors = listOf(
+                "Contradicted by the material",
+                "Not mentioned in the material",
+                "Only implied, not directly stated"
+            )
             val seed = skill.id * 31L + count * 17L + evidenceChunk.id * 7L +
                 difficulty.hashCode() + index * 97L
-            val correctIndex = java.util.Random(seed).nextInt(2)
-            val yes = "Yes — this fact appears in your notes"
-            val no = "No — this fact is not stated in your notes"
-            val optionA = if (correctIndex == 0) yes else no
-            val optionB = if (correctIndex == 1) yes else no
+            val random = java.util.Random(seed)
+            val options = (distractors + correctLabel).shuffled(random)
+            val correctIndex = options.indexOf(correctLabel)
 
             QuestionEntity(
                 courseId = skill.courseId,
                 skillId = skill.id,
-                questionText = "Your notes say: \"$statement\"\n\nIs this fact stated in the source?",
-                optionA = optionA,
-                optionB = optionB,
-                optionC = "",
-                optionD = "",
+                questionText = "What evidence status best describes this claim in the source?\\n\\n\\\"$statement\\\"",
+                optionA = options[0],
+                optionB = options[1],
+                optionC = options[2],
+                optionD = options[3],
                 correctAnswerIndex = correctIndex,
-                explanation = "This sentence is quoted from page ${evidenceChunk.pageNumber} of ${evidenceChunk.sourceDocumentName}.",
+                explanation = "The claim is quoted from page ${evidenceChunk.pageNumber} of ${evidenceChunk.sourceDocumentName}, so it is explicitly supported by the material.",
                 difficulty = difficulty,
-                hint = "Review page ${evidenceChunk.pageNumber} in ${evidenceChunk.sourceDocumentName}.",
+                hint = "Compare the claim with the cited passage on page ${evidenceChunk.pageNumber}.",
                 sourceDocumentName = evidenceChunk.sourceDocumentName,
                 sourcePage = evidenceChunk.pageNumber
             )
