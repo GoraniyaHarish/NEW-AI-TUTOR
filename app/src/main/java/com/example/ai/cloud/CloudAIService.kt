@@ -316,9 +316,10 @@ open class CloudAIService(private val context: Context? = null) : AIService {
                 return callGeminiApi(model, payload) to model
             } catch (e: Exception) {
                 Log.w(TAG, "Direct Gemini API request failed for $model: ${e.message}")
-                // Invalid keys, permission failures, and malformed requests will not
-                // improve by trying a second model; fail fast instead.
-                if (e is GeminiHttpException && e.code in listOf(400, 401, 403)) throw e
+                // Retry another model only for model availability, throttling, or server errors.
+                // Do not double the wait after timeouts/network failures or invalid credentials.
+                if (e !is GeminiHttpException) throw e
+                if (e.code !in listOf(404, 429, 500, 502, 503, 504)) throw e
                 if (lastException == null) lastException = e else lastException.addSuppressed(e)
             }
         }
