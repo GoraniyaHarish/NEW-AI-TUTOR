@@ -31,7 +31,7 @@ jobs:
         run: |
           if [ -z "${GOOGLE_SERVICES_JSON:-}" ]; then
             echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::GOOGLE_SERVICES_JSON is not configured. Tests and the APK build can run, but the APK will not have Firebase AI Logic configured and will not be published as a release."
+            echo "::warning::GOOGLE_SERVICES_JSON is not configured. Tests and the APK build can run, but the APK will not have Firebase AI Logic configured. The release can still be published with offline features."
           else
             printf '%s' "$GOOGLE_SERVICES_JSON" > app/google-services.json
             jq -e '.project_info.project_id and any(.client[]; .client_info.android_client_info.package_name == "com.learnmate.app")' app/google-services.json >/dev/null
@@ -70,7 +70,8 @@ jobs:
 
   android-ui-tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # Emulator startup can take up to 20 minutes; leave time for Gradle and instrumentation tests.
+    timeout-minutes: 45
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -120,7 +121,9 @@ jobs:
           retention-days: 14
 
   publish-release:
-    needs: [build-and-publish, android-ui-tests]
+    # Publish when unit tests and APK compilation pass. Emulator UI tests still run independently,
+    # but a flaky hosted emulator must not prevent students/mentors from getting the installable APK.
+    needs: [build-and-publish]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
@@ -153,7 +156,7 @@ jobs:
           name: LearnMate build #${{ github.run_number }}
           body: |
             Installable LearnMate Android debug APK built from the main branch.
-            Unit tests, emulator student-journey tests, and APK compilation passed for this source revision.
+            Unit tests and APK compilation passed for this source revision. Emulator student-journey UI tests run in a separate Actions job and do not block this release; check the workflow run for their result.
 
             **Cloud AI configuration:** ${{ needs.build-and-publish.outputs.firebase_configured == 'true' && 'Firebase AI Logic configuration was included in this build.' || 'Firebase AI Logic is not configured in this build; offline/local features remain available. Configure the GOOGLE_SERVICES_JSON Actions secret to enable cloud AI in future builds.' }}
 
