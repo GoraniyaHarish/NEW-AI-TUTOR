@@ -32,8 +32,21 @@ open class CloudAIService(private val context: Context? = null) : AIService {
     open fun isConfigured(): Boolean {
         val appContext = context ?: return false
         return try {
-            FirebaseApp.getApps(appContext).isNotEmpty()
-        } catch (_: Exception) {
+            // Prefer the default Firebase app; if automatic initialization did not run,
+            // retry initialization here so the tutor can recover from startup ordering issues.
+            val firebaseApp = try {
+                FirebaseApp.getInstance()
+            } catch (_: IllegalStateException) {
+                FirebaseApp.initializeApp(appContext)
+            }
+            if (firebaseApp == null) {
+                Log.e(TAG, "FirebaseApp initialization returned null. Check google-services.json and generated Firebase resources.")
+                false
+            } else {
+                true
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "FirebaseApp is unavailable; cloud AI cannot be initialized.", e)
             false
         }
     }
