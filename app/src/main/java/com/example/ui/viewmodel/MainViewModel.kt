@@ -194,7 +194,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteDocument(documentId: Long, onDeleted: () -> Unit = {}, onFailure: (String) -> Unit = {}) {
         viewModelScope.launch {
-            runCatching { repository.deleteDocument(activeCourseId.value ?: return@launch false, documentId) }
+            val courseId = activeCourseId.value
+            if (courseId == null) {
+                onFailure("Select a course before removing a document.")
+                return@launch
+            }
+            runCatching { repository.deleteDocument(courseId, documentId) }
                 .onSuccess { deleted ->
                     if (deleted) {
                         _diagnosticAnswers.value = emptyMap()
