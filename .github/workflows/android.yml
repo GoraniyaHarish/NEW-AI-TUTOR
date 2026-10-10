@@ -20,7 +20,6 @@ jobs:
     timeout-minutes: 25
     outputs:
       firebase_configured: ${{ steps.firebase_config.outputs.configured }}
-      release_signed: ${{ steps.release_signing.outputs.configured }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -31,15 +30,14 @@ jobs:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
           if [ -z "${GOOGLE_SERVICES_JSON:-}" ]; then
-            echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::GOOGLE_SERVICES_JSON is not configured. Tests and the APK build can run, but the APK will not have Firebase AI Logic configured. The release can still be published with offline features."
-          else
-            printf '%s' "$GOOGLE_SERVICES_JSON" > app/google-services.json
-            jq -e '.project_info.project_id and any(.client[]; .client_info.android_client_info.package_name == "com.learnmate.app")' app/google-services.json >/dev/null
-            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "::error::GOOGLE_SERVICES_JSON is required. Add the valid app/google-services.json content as a GitHub Actions secret before building a release."
+            exit 1
           fi
+          printf '%s' "$GOOGLE_SERVICES_JSON" > app/google-services.json
+          jq -e '.project_info.project_id and any(.client[]; .client_info.android_client_info.package_name == "com.learnmate.app")' app/google-services.json >/dev/null
+          echo "configured=true" >> "$GITHUB_OUTPUT"
 
-      - name: Check release-signing secrets and decode persistent keystore
+      - name: Validate release-signing secrets and decode persistent keystore
         id: release_signing
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -47,13 +45,8 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          if [ -z "${ANDROID_KEYSTORE_BASE64:-}" ] && [ -z "${ANDROID_STORE_PASSWORD:-}" ] && [ -z "${ANDROID_KEY_ALIAS:-}" ] && [ -z "${ANDROID_KEY_PASSWORD:-}" ]; then
-            echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Release signing secrets are not configured. CI will publish a debug/testing APK only."
-            exit 0
-          fi
           if [ -z "${ANDROID_KEYSTORE_BASE64:-}" ] || [ -z "${ANDROID_STORE_PASSWORD:-}" ] || [ -z "${ANDROID_KEY_ALIAS:-}" ] || [ -z "${ANDROID_KEY_PASSWORD:-}" ]; then
-            echo "::error::Configure all four Android signing secrets."
+            echo "::error::All four Android signing secrets are required to publish a production-signed APK."
             exit 1
           fi
           KEYSTORE_PATH="$RUNNER_TEMP/learnmate-release.jks"
@@ -79,19 +72,7 @@ jobs:
       - name: Run unit tests
         run: bash ./gradlew :app:testDebugUnitTest --stacktrace
 
-      - name: Build debug APK for CI/testing
-        run: bash ./gradlew :app:assembleDebug -PVERSION_CODE=${{ github.run_number }} --stacktrace
-
-      - name: Upload installable debug APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: learnmate-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 14
-
       - name: Build production-signed release APK
-        if: steps.release_signing.outputs.configured == 'true'
         env:
           KEYSTORE_PATH: ${{ runner.temp }}/learnmate-release.jks
           STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
@@ -100,7 +81,6 @@ jobs:
         run: bash ./gradlew :app:assembleRelease -PVERSION_CODE=${{ github.run_number }} --stacktrace
 
       - name: Upload production-signed release APK artifact
-        if: steps.release_signing.outputs.configured == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: learnmate-release-apk
@@ -109,61 +89,8 @@ jobs:
           retention-days: 14
 
 
-  android-ui-tests:
-    runs-on: ubuntu-latest
-    # Emulator startup can take up to 20 minutes; leave time for Gradle and instrumentation tests.
-    timeout-minutes: 45
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          packages: platform-tools platforms;android-36 build-tools;36.0.0
-
-      - name: Run student journey UI tests on Android emulator
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 34
-          target: google_apis
-          arch: x86_64
-          profile: pixel_2
-          disable-animations: true
-          # Allow slower GitHub-hosted runners extra time to start the emulator.
-          emulator-boot-timeout: 1200
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
-          script: |
-            echo "Connected Android devices:"
-            adb devices -l
-            adb wait-for-device
-            echo "Emulator boot status:"
-            adb shell getprop sys.boot_completed
-            bash ./gradlew :app:connectedDebugAndroidTest --stacktrace
-
-      - name: Upload Android UI test reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-ui-test-reports
-          path: |
-            app/build/reports/androidTests/connected/
-            app/build/outputs/androidTest-results/connected/
-          if-no-files-found: warn
-          retention-days: 14
-
   publish-release:
-    # Publish when unit tests and APK compilation pass. Emulator UI tests still run independently,
-    # but a flaky hosted emulator must not prevent students/mentors from getting the installable APK.
+    # Publish only after Firebase configuration, unit tests, signing validation, and release APK compilation pass.
     needs: [build-and-publish]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -173,29 +100,16 @@ jobs:
       - name: Check out the tested source revision
         uses: actions/checkout@v4
 
-      - name: Download CI debug APK artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: learnmate-debug-apk
-          path: dist-debug
-
       - name: Download production-signed APK artifact
-        if: needs.build-and-publish.outputs.release_signed == 'true'
         uses: actions/download-artifact@v4
         with:
           name: learnmate-release-apk
           path: dist-release
 
       - name: Prepare APK release asset
-        env:
-          RELEASE_SIGNED: ${{ needs.build-and-publish.outputs.release_signed }}
         run: |
           mkdir -p dist
-          if [ "$RELEASE_SIGNED" = "true" ]; then
-            cp dist-release/app-release.apk dist/learnmate.apk
-          else
-            cp dist-debug/app-debug.apk dist/learnmate.apk
-          fi
+          cp dist-release/app-release.apk dist/learnmate.apk
 
       - name: Verify this is still the latest main commit
         id: latest
@@ -215,11 +129,11 @@ jobs:
           name: LearnMate build #${{ github.run_number }}
           body: |
             Installable LearnMate Android APK built from the main branch.
-            Unit tests and APK compilation passed for this source revision. Emulator student-journey UI tests run in a separate Actions job and do not block this release; check the workflow run for their result.
+            Unit tests and production-signed APK compilation passed for this source revision. Full Android student-journey UI tests are available as a separate manually triggered workflow.
 
-            **APK type:** ${{ needs.build-and-publish.outputs.release_signed == 'true' && 'Production-signed release APK.' || 'Debug/testing APK only. Configure the persistent Android signing secrets before distributing this build to students.' }}
+            **APK type:** Production-signed release APK.
 
-            **Cloud AI configuration:** ${{ needs.build-and-publish.outputs.firebase_configured == 'true' && 'Firebase AI Logic configuration was included in this build; live AI still depends on Firebase Console and App Check setup.' || 'Firebase AI Logic is not configured in this build; offline/local features remain available. Configure the GOOGLE_SERVICES_JSON Actions secret to enable cloud AI in future builds.' }}
+            **Cloud AI configuration:** Firebase configuration was validated and included in this build. Live AI still depends on Firebase Console, API access, and App Check setup.
 
             **Install:** Download learnmate.apk to an Android device and open it. Allow installation from this source if Android asks. Keep the same release signing keystore for all updates.
           files: dist/learnmate.apk
