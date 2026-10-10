@@ -235,10 +235,10 @@ class MainViewModelTest {
             viewModel.repository.deleteCourse(courseId)
         }
 
-        assertEquals(null, viewModel.repository.getCourse(courseId))
-        assertTrue(viewModel.repository.getAllCourses().first().isEmpty())
-        assertTrue(database.documentDao().getDocumentsSync(courseId).isEmpty())
-        assertTrue(database.documentChunkDao().getChunksSync(courseId).isEmpty())
+        assertEquals(null, kotlinx.coroutines.runBlocking { viewModel.repository.getCourse(courseId) })
+        assertTrue(kotlinx.coroutines.runBlocking { viewModel.repository.getAllCourses().first().isEmpty() })
+        assertTrue(kotlinx.coroutines.runBlocking { database.documentDao().getDocumentsSync(courseId).isEmpty() })
+        assertTrue(kotlinx.coroutines.runBlocking { database.documentChunkDao().getChunksSync(courseId).isEmpty() })
         assertEquals(null, viewModel.activeCourseId.value)
     }
 
@@ -276,10 +276,12 @@ class MainViewModelTest {
             assertTrue(viewModel.repository.deleteDocument(courseId, documentId))
         }
 
-        assertTrue(database.documentDao().getDocumentsSync(courseId).isEmpty())
-        assertTrue(database.documentChunkDao().getChunksSync(courseId).isEmpty())
-        assertTrue(database.skillDao().getSkillsSync(courseId).isEmpty())
-        assertTrue(database.questionDao().getQuestionsSync(courseId).isEmpty())
+        kotlinx.coroutines.runBlocking {
+            assertTrue(database.documentDao().getDocumentsSync(courseId).isEmpty())
+            assertTrue(database.documentChunkDao().getChunksSync(courseId).isEmpty())
+            assertTrue(database.skillDao().getSkillsSync(courseId).isEmpty())
+            assertTrue(database.questionDao().getQuestionsSync(courseId).isEmpty())
+        }
     }
 
 }
