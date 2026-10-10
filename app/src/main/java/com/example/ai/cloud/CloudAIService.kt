@@ -26,11 +26,10 @@ import java.util.concurrent.TimeUnit
 
 open class CloudAIService(private val context: Context? = null) : AIService {
 
-    // Use widely available Gemini Developer API model IDs. Try the fast/lower-cost
-    // model first, then the standard Flash model if that model is unavailable.
+    // Prefer the current low-latency model, then fall back to the more capable Flash model.
     private val candidateModels = listOf(
-        "gemini-2.5-flash-lite",
-        "gemini-2.5-flash"
+        "gemini-3.5-flash-lite",
+        "gemini-3.8-flash"
     )
 
     private val httpClient = OkHttpClient.Builder()
