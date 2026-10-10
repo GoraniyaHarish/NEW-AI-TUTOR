@@ -18,25 +18,26 @@ jobs:
   build-and-publish:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
     outputs:
-      firebase_configured: ${{ steps.firebase_config.outputs.configured }}
+      gemini_configured: ${{ steps.gemini_config.outputs.configured }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Configure Firebase from repository secret
-        id: firebase_config
+      - name: Check direct Gemini API configuration
+        id: gemini_config
         env:
-          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          if [ -z "${GOOGLE_SERVICES_JSON:-}" ]; then
-            echo "::error::GOOGLE_SERVICES_JSON is required. Add the valid app/google-services.json content as a GitHub Actions secret before building a release."
-            exit 1
+          if [ -z "${GEMINI_API_KEY:-}" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::GEMINI_API_KEY is not configured. The release APK can build, but online AI will use the offline fallback until the secret is added."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "Direct Gemini API key is available to the Gradle build."
           fi
-          printf '%s' "$GOOGLE_SERVICES_JSON" > app/google-services.json
-          jq -e '.project_info.project_id and any(.client[]; .client_info.android_client_info.package_name == "com.learnmate.app")' app/google-services.json >/dev/null
-          echo "configured=true" >> "$GITHUB_OUTPUT"
-
       - name: Validate release-signing secrets and decode persistent keystore
         id: release_signing
         env:
@@ -99,7 +100,7 @@ jobs:
 
 
   publish-release:
-    # Publish only after Firebase configuration, unit tests, signing validation, and release APK compilation pass.
+    # Publish after unit tests, signing validation, and release APK compilation pass.
     needs: [build-and-publish]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -142,7 +143,7 @@ jobs:
 
             **APK type:** Production-signed release APK.
 
-            **Cloud AI configuration:** Firebase configuration was validated and included in this build. Live AI still depends on Firebase Console, API access, and App Check setup.
+            **Online AI configuration:** ${{ needs.build-and-publish.outputs.gemini_configured == 'true' && 'Direct Gemini API key was supplied to this build. Online AI still requires an active Gemini API key with model access and quota.' || 'GEMINI_API_KEY was not configured at build time; offline/local features remain available.' }}
 
             **Install:** Download learnmate.apk to an Android device and open it. Allow installation from this source if Android asks. Keep the same release signing keystore for all updates.
           files: dist/learnmate.apk

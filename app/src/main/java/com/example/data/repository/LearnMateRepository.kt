@@ -198,7 +198,7 @@ class LearnMateRepository(
                     val skillChunks = retriever.search(skill.name, chunks, courseId = courseId, topK = 4)
                         .map { it.chunk }
                     questions.addAll(
-                        aiRouter.generateQuestionsForSkill(skill.copy(id = id), 2, "MEDIUM", skillChunks)
+                        offlineQuizGenerator.generateQuestionsForSkill(skill.copy(id = id), 2, "MEDIUM", skillChunks)
                     )
                 }
                 database.questionDao().insertQuestions(questions)

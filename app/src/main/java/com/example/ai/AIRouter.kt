@@ -40,7 +40,7 @@ class AIRouter(
                 val localResponse = localAI.answerTutor(query, skill, relevantChunks, courseId, conversationHistory)
                 return localResponse.copy(
                     answer = "Online AI could not respond, so this answer was generated offline. " +
-                        "Check your connection and Firebase AI/App Check setup, then try again.\n\n" +
+                        "Check your connection and Gemini API key, then try again.\n\n" +
                         localResponse.answer
                 )
             }
@@ -48,9 +48,9 @@ class AIRouter(
 
         val localResponse = localAI.answerTutor(query, skill, relevantChunks, courseId, conversationHistory)
         return if (isOnline && !hasCloudKey) {
-            Log.w(TAG, "Internet is available, but Firebase AI is not configured for this app")
+            Log.w(TAG, "Internet is available, but a Gemini API key is not configured for this build")
             localResponse.copy(
-                answer = "Online AI is not configured in this installation, so this answer was generated offline.\n\n" +
+                answer = "Online Gemini AI is not configured in this installation, so this answer was generated offline.\n\n" +
                     localResponse.answer
             )
         } else {

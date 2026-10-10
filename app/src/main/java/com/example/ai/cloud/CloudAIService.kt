@@ -2,9 +2,11 @@ package com.example.ai.cloud
 
 import android.content.Context
 import android.util.Log
-import com.google.firebase.FirebaseApp
-import com.google.firebase.ai.FirebaseAI
-import com.google.firebase.ai.type.GenerativeBackend
+import com.example.BuildConfig
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import com.example.ai.AIService
 import com.example.ai.LessonExplanation
 import com.example.ai.TutorResponse
@@ -20,6 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.concurrent.TimeUnit
 
 open class CloudAIService(private val context: Context? = null) : AIService {
 
@@ -29,27 +32,14 @@ open class CloudAIService(private val context: Context? = null) : AIService {
         "gemini-3.5-flash-lite"
     )
 
-    open fun isConfigured(): Boolean {
-        val appContext = context ?: return false
-        return try {
-            // Prefer the default Firebase app; if automatic initialization did not run,
-            // retry initialization here so the tutor can recover from startup ordering issues.
-            val firebaseApp = try {
-                FirebaseApp.getInstance()
-            } catch (_: IllegalStateException) {
-                FirebaseApp.initializeApp(appContext)
-            }
-            if (firebaseApp == null) {
-                Log.e(TAG, "FirebaseApp initialization returned null. Check google-services.json and generated Firebase resources.")
-                false
-            } else {
-                true
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "FirebaseApp is unavailable; cloud AI cannot be initialized.", e)
-            false
-        }
-    }
+    private val httpClient = OkHttpClient.Builder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(45, TimeUnit.SECONDS)
+        .writeTimeout(20, TimeUnit.SECONDS)
+        .callTimeout(55, TimeUnit.SECONDS)
+        .build()
+
+    open fun isConfigured(): Boolean = BuildConfig.GEMINI_API_KEY.isNotBlank()
 
     override suspend fun answerTutor(
         query: String,
@@ -319,47 +309,39 @@ open class CloudAIService(private val context: Context? = null) : AIService {
     }
 
     private suspend fun executeGeminiRequest(payload: JSONObject): Pair<String, String> {
+        if (!isConfigured()) throw IllegalStateException("Gemini API key is missing from this build.")
         var lastException: Exception? = null
-
         for (model in candidateModels) {
             try {
-                val text = callFirebaseAI(model, payload)
-                Log.i(TAG, "Firebase AI request succeeded with model $model")
-                return Pair(text, model)
+                return callGeminiApi(model, payload) to model
             } catch (e: Exception) {
-                Log.e(TAG, "Firebase AI request failed with model $model", e)
-                if (lastException == null) {
-                    lastException = e
-                } else {
-                    lastException.addSuppressed(e)
-                }
+                Log.w(TAG, "Direct Gemini API request failed for $model: ${e.message}")
+                if (lastException == null) lastException = e else lastException.addSuppressed(e)
             }
         }
-        throw lastException ?: Exception("Failed to execute Gemini request across candidate models.")
+        throw lastException ?: IllegalStateException("All Gemini model requests failed.")
     }
 
-    private suspend fun callFirebaseAI(modelName: String, payload: JSONObject): String {
-        if (!isConfigured()) throw IllegalStateException("Firebase AI Logic is not configured for this app.")
-        val systemText = payload.optJSONObject("systemInstruction")
-            ?.optJSONArray("parts")
-            ?.optJSONObject(0)
-            ?.optString("text")
-            .orEmpty()
-        val contents = payload.optJSONArray("contents") ?: JSONArray()
-        val prompt = buildString {
-            if (systemText.isNotBlank()) append("SYSTEM INSTRUCTIONS:\n$systemText\n\n")
-            for (index in 0 until contents.length()) {
-                val turn = contents.optJSONObject(index) ?: continue
-                val role = if (turn.optString("role") == "model") "TUTOR" else "STUDENT"
-                val text = turn.optJSONArray("parts")?.optJSONObject(0)?.optString("text").orEmpty()
-                if (text.isNotBlank()) append("$role:\n$text\n\n")
+    private suspend fun callGeminiApi(modelName: String, payload: JSONObject): String = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent")
+            .header("x-goog-api-key", BuildConfig.GEMINI_API_KEY)
+            .post(payload.toString().toRequestBody("application/json; charset=utf-8".toMediaType()))
+            .build()
+        httpClient.newCall(request).execute().use { response ->
+            val bodyText = response.body?.string().orEmpty()
+            if (!response.isSuccessful) {
+                val detail = runCatching { JSONObject(bodyText).optJSONObject("error")?.optString("message") }.getOrNull().orEmpty()
+                throw IllegalStateException("Gemini API HTTP ${response.code}: ${detail.ifBlank { "request failed" }}")
             }
+            val parts = JSONObject(bodyText).optJSONArray("candidates")?.optJSONObject(0)
+                ?.optJSONObject("content")?.optJSONArray("parts")
+                ?: throw IllegalStateException("Gemini API returned no text parts.")
+            val text = (0 until parts.length()).mapNotNull { parts.optJSONObject(it)?.optString("text") }
+                .filter { it.isNotBlank() }.joinToString("\n")
+            text.ifBlank { throw IllegalStateException("Gemini API returned an empty response.") }
         }
-        val model = FirebaseAI.getInstance(backend = GenerativeBackend.googleAI()).generativeModel(modelName)
-        return model.generateContent(prompt).text
-            ?: throw IllegalStateException("Firebase AI Logic returned an empty response.")
     }
-
     private companion object {
         const val TAG = "LearnMateCloudAI"
     }
