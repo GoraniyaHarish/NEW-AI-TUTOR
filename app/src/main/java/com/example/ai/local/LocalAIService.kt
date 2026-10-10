@@ -273,7 +273,7 @@ class LocalAIService(
             QuestionEntity(
                 courseId = skill.courseId,
                 skillId = skill.id,
-                questionText = "What evidence status best describes this claim in the source?\\n\\n\\\"$statement\\\"",
+                questionText = "What evidence status best describes this claim in the source?\n\n\"$statement\"",
                 optionA = options[0],
                 optionB = options[1],
                 optionC = options[2],
