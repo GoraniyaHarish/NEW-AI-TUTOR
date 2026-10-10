@@ -1,5 +1,6 @@
 package com.example.ai
 
+import android.util.Log
 import com.example.ai.cloud.CloudAIService
 import com.example.ai.local.LocalAIService
 import com.example.core.network.NetworkMonitor
@@ -34,13 +35,27 @@ class AIRouter(
         if (isOnline && hasCloudKey) {
             try {
                 return cloudAI.answerTutor(query, skill, relevantChunks, courseId, conversationHistory)
-            } catch (_: Exception) {
-                // Cloud attempt failed or timed out: fall back seamlessly to honest local tutor
+            } catch (e: Exception) {
+                Log.e(TAG, "Cloud tutor request failed; using local tutor fallback", e)
+                val localResponse = localAI.answerTutor(query, skill, relevantChunks, courseId, conversationHistory)
+                return localResponse.copy(
+                    answer = "Online AI could not respond, so this answer was generated offline. " +
+                        "Check your connection and Firebase AI/App Check setup, then try again.\n\n" +
+                        localResponse.answer
+                )
             }
         }
 
-        // Offline or fallback path:
-        return localAI.answerTutor(query, skill, relevantChunks, courseId, conversationHistory)
+        val localResponse = localAI.answerTutor(query, skill, relevantChunks, courseId, conversationHistory)
+        return if (isOnline && !hasCloudKey) {
+            Log.w(TAG, "Internet is available, but Firebase AI is not configured for this app")
+            localResponse.copy(
+                answer = "Online AI is not configured in this installation, so this answer was generated offline.\n\n" +
+                    localResponse.answer
+            )
+        } else {
+            localResponse
+        }
     }
 
     override suspend fun generateExplanation(
@@ -53,8 +68,8 @@ class AIRouter(
         if (isOnline && hasCloudKey) {
             try {
                 return cloudAI.generateExplanation(skill, relevantChunks)
-            } catch (_: Exception) {
-                // Fall back to local
+            } catch (e: Exception) {
+                Log.e(TAG, "Cloud lesson explanation failed; using local fallback", e)
             }
         }
 
@@ -76,11 +91,16 @@ class AIRouter(
                 if (cloudQuestions.isNotEmpty()) {
                     return cloudQuestions
                 }
-            } catch (_: Exception) {
-                // Fall back to local
+                Log.w(TAG, "Cloud quiz generation returned no valid questions; using local fallback")
+            } catch (e: Exception) {
+                Log.e(TAG, "Cloud quiz generation failed; using local fallback", e)
             }
         }
 
         return localAI.generateQuestionsForSkill(skill, count, difficulty, relevantChunks)
+    }
+
+    private companion object {
+        const val TAG = "LearnMateAIRouter"
     }
 }
