@@ -26,17 +26,18 @@ import java.util.concurrent.TimeUnit
 
 open class CloudAIService(private val context: Context? = null) : AIService {
 
-    // Prefer the current stable fast model; retain a broadly available lightweight fallback.
+    // Use widely available Gemini Developer API model IDs. Try the fast/lower-cost
+    // model first, then the standard Flash model if that model is unavailable.
     private val candidateModels = listOf(
-        "gemini-3.8-flash",
-        "gemini-3.5-flash-lite"
+        "gemini-2.5-flash-lite",
+        "gemini-2.5-flash"
     )
 
     private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(45, TimeUnit.SECONDS)
-        .writeTimeout(20, TimeUnit.SECONDS)
-        .callTimeout(55, TimeUnit.SECONDS)
+        .connectTimeout(8, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(15, TimeUnit.SECONDS)
+        .callTimeout(35, TimeUnit.SECONDS)
         .build()
 
     open fun isConfigured(): Boolean = BuildConfig.GEMINI_API_KEY.isNotBlank()
@@ -56,7 +57,7 @@ open class CloudAIService(private val context: Context? = null) : AIService {
         conversationHistory: List<ChatMessageEntity>
     ): TutorResponse = withContext(Dispatchers.IO) {
         if (!isConfigured()) {
-            throw IllegalStateException("Firebase AI Logic is not configured for this app.")
+            throw IllegalStateException("Direct Gemini API key is missing. Add GEMINI_API_KEY to the build configuration.")
         }
 
         val topChunk = relevantChunks.firstOrNull()
@@ -316,6 +317,9 @@ open class CloudAIService(private val context: Context? = null) : AIService {
                 return callGeminiApi(model, payload) to model
             } catch (e: Exception) {
                 Log.w(TAG, "Direct Gemini API request failed for $model: ${e.message}")
+                // Invalid keys, permission failures, and malformed requests will not
+                // improve by trying a second model; fail fast instead.
+                if (e is GeminiHttpException && e.code in listOf(400, 401, 403)) throw e
                 if (lastException == null) lastException = e else lastException.addSuppressed(e)
             }
         }
@@ -332,7 +336,10 @@ open class CloudAIService(private val context: Context? = null) : AIService {
             val bodyText = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
                 val detail = runCatching { JSONObject(bodyText).optJSONObject("error")?.optString("message") }.getOrNull().orEmpty()
-                throw IllegalStateException("Gemini API HTTP ${response.code}: ${detail.ifBlank { "request failed" }}")
+                throw GeminiHttpException(
+                    response.code,
+                    "Gemini API HTTP ${response.code}: ${detail.ifBlank { "request failed" }}"
+                )
             }
             val parts = JSONObject(bodyText).optJSONArray("candidates")?.optJSONObject(0)
                 ?.optJSONObject("content")?.optJSONArray("parts")
@@ -342,6 +349,8 @@ open class CloudAIService(private val context: Context? = null) : AIService {
             text.ifBlank { throw IllegalStateException("Gemini API returned an empty response.") }
         }
     }
+    private class GeminiHttpException(val code: Int, message: String) : IllegalStateException(message)
+
     private companion object {
         const val TAG = "LearnMateCloudAI"
     }
