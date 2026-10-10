@@ -1,6 +1,6 @@
 # LearnMate
 
-> **Offline-first personalized learning assistant that turns a student's own study materials into grounded tutoring, adaptive mastery tracking, and personalized study plans.**
+> **Offline-first personalized learning assistant with local study tools and optional direct Gemini API tutoring for prototype builds.**
 
 [![Platform](https://img.shields.io/badge/Platform-Android-3DDC84.svg?logo=android&logoColor=white)](https://www.android.com/)
 [![Language](https://img.shields.io/badge/Kotlin-2.2.21-7F52FF.svg?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
@@ -81,7 +81,7 @@ Personalized Next Step & Study Path
 | **Quiz Generation & Evaluation** | **Full** (Deterministic engine) | **Enhanced** (Dynamic generation) |
 | **Mastery & Prerequisite Tracking** | **Full** (Local database) | **Full** |
 | **Spaced Repetition (SM-2)** | **Full** (Local scheduler) | **Full** |
-| **Document-Grounded Tutoring** | **Full** (Grounded chunk extracts) | **Optional** (Firebase AI Logic + App Check configuration required) |
+| **Document-Grounded Tutoring** | **Full** (Grounded chunk extracts) | **Optional** (direct Gemini API key required) |
 | **On-Device Neural Model** | *Deferred / In Roadmap* | N/A |
 
 > **Note on Local Neural Model**: While BM25 search, document indexing, quiz evaluation, mastery tracking, and deterministic tutoring run 100% locally on-device, large-parameter neural LLM inference (e.g. MediaPipe / On-device SLMs) is architectural and planned for future iterations.
@@ -171,9 +171,7 @@ cd NEW-AI-TUTOR
 
 The APK will be generated at `app/build/outputs/apk/debug/app-debug.apk`. Verify build and test results on the current checkout before reporting them as passing.
 
-Cloud AI requires a Firebase project configured for Firebase AI Logic and App Check, with its `google-services.json` in `app/`. Do not put a Gemini Developer API key in the Android app or its build configuration; Firebase AI Logic keeps that authorization on Google's service side.
-
-For GitHub Actions builds, add the complete contents of `app/google-services.json` as a repository Actions secret named `GOOGLE_SERVICES_JSON`. The local file is ignored by Git and is not automatically available to GitHub's build runners. Without this secret, cloud AI will be unavailable in that APK. To enable signed public APKs, also add repository Actions secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_STORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD`. Use the same persistent release keystore for every update. Register its SHA-256 certificate fingerprint in Firebase App Check and configure Play Integrity for the GitHub-only distribution channel. See [the development guide](docs/DEVELOPMENT.md) for the setup checklist. CI assigns increasing version codes so new builds can update existing installations.
+Online tutoring now calls the Gemini Developer API directly and does not require Firebase or `google-services.json`. For a local prototype build, set `GEMINI_API_KEY` in `local.properties` (do not commit that file) or pass it as a Gradle property/environment variable. For GitHub Actions, add a repository Actions secret named `GEMINI_API_KEY`. **Prototype security warning:** a key compiled into an APK can be extracted by anyone who receives it; restrict its quota and rotate it after testing. For public distribution, use a small authenticated backend proxy instead of embedding a permanent key. To publish production-signed APKs, also configure `ANDROID_KEYSTORE_BASE64`, `ANDROID_STORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD`. Use the same persistent release keystore for every update. See [the development guide](docs/DEVELOPMENT.md) for setup. CI assigns increasing version codes so new builds can update existing installations.
 
 ---
 
