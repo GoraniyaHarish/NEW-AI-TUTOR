@@ -400,10 +400,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun sendTutorMessage(courseId: Long, query: String, skillId: Long? = null) {
+        // Update the UI state immediately and ignore repeated taps while a reply is pending.
+        if (_isTutorThinking.value || query.isBlank()) return
+        _isTutorThinking.value = true
         viewModelScope.launch {
-            _isTutorThinking.value = true
             try {
-                repository.askTutor(courseId, query, skillId)
+                repository.askTutor(courseId, query.trim(), skillId)
             } finally {
                 _isTutorThinking.value = false
             }
