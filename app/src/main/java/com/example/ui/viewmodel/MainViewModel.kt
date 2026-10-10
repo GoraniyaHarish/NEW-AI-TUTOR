@@ -182,6 +182,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         repository.setActiveCourse(courseId)
     }
 
+    fun deleteCourse(courseId: Long, onDeleted: () -> Unit = {}) {
+        viewModelScope.launch {
+            repository.deleteCourse(courseId)
+            _diagnosticAnswers.value = emptyMap()
+            _diagnosticHintsUsed.value = emptyMap()
+            _lastQuizEvaluation.value = null
+            onDeleted()
+        }
+    }
+
+    fun deleteDocument(documentId: Long, onDeleted: () -> Unit = {}, onFailure: (String) -> Unit = {}) {
+        viewModelScope.launch {
+            runCatching { repository.deleteDocument(activeCourseId.value ?: return@launch false, documentId) }
+                .onSuccess { deleted ->
+                    if (deleted) {
+                        _diagnosticAnswers.value = emptyMap()
+                        _diagnosticHintsUsed.value = emptyMap()
+                        _lastQuizEvaluation.value = null
+                        onDeleted()
+                    } else {
+                        onFailure("This document is no longer in the selected course.")
+                    }
+                }
+                .onFailure { error ->
+                    onFailure(error.message ?: "The document could not be removed.")
+                }
+        }
+    }
+
     fun toggleOfflineSimulation() {
         networkMonitor.toggleOfflineSimulation()
     }
