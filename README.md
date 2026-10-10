@@ -18,7 +18,7 @@
 - **[View all releases](https://github.com/GoraniyaHarish/NEW-AI-TUTOR/releases)** — see available builds and release notes.
 - **[Check build and test status](https://github.com/GoraniyaHarish/NEW-AI-TUTOR/actions/workflows/android.yml)** — the APK is published automatically after the main-branch CI build and tests succeed.
 
-> **Release signing:** GitHub Actions publishes a properly signed release APK when the persistent Android signing secrets are configured. If those secrets are absent, the workflow falls back to a clearly labeled debug/testing APK; do not distribute that fallback as a public production build. Android may ask you to allow installation from your browser or file manager. Only install APKs you trust. If the download link is not available yet, check the Actions page for the latest build status.
+> **Release requirements:** The current GitHub Actions workflow requires `GEMINI_API_KEY` and all four persistent Android signing secrets (`ANDROID_KEYSTORE_BASE64`, `ANDROID_STORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD`). If a required secret is missing or invalid, the release build fails rather than publishing a fallback APK. Android may ask you to allow installation from your browser or file manager. Only install APKs you trust. If the download link is not available yet, check the Actions page for the latest build status.
 
 ---
 
