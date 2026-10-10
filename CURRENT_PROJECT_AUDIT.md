@@ -1,6 +1,6 @@
 # LearnMate — Current Project Audit
 
-**Last reviewed:** 9 October 2026  
+**Last reviewed:** 10 October 2026  
 **Purpose:** Record the repository's current implementation status and known limitations. This document is not a substitute for running the build and tests on the current commit.
 
 ## Product summary
@@ -15,10 +15,13 @@ LearnMate is an Android learning assistant built with Kotlin, Jetpack Compose, R
 - Local BM25 lexical retrieval with course-aware filtering.
 - Query-intent handling for common tutoring requests.
 - A deterministic offline tutor that formats explanations from retrieved passages.
-- Cloud AI routing when connectivity and configuration allow it.
+- Direct Gemini Developer API routing when connectivity and a valid `GEMINI_API_KEY` allow it; Firebase is not required for this prototype path.
 - Quiz evaluation, learner-skill/mastery calculations, personalization, and spaced-repetition logic.
 - Android text-to-speech support.
-- Unit and Robolectric tests covering key retrieval, tutoring, data, and learning behavior.
+- Unit and Robolectric tests covering key retrieval, tutoring, data, learning behavior, and course/document deletion cleanup.
+- Course deletion with confirmation and transactional removal of related local data.
+- Document removal with confirmation; generated topics/questions are rebuilt from remaining source documents and stale practice history is cleared.
+- Startup cleanup for legacy courses explicitly marked as demo data; fresh installs do not seed sample courses.
 
 ## Grounding rule
 
@@ -31,7 +34,7 @@ The base app provides local document search and deterministic, structured tutori
 ## Not implemented or not yet verified as production-ready
 
 - A downloadable, working on-device neural LLM with real model weights and inference.
-- Firebase AI Logic cloud requests are not verified in this checkout because `app/google-services.json` and a Firebase AI Logic project configuration are absent. The app uses Firebase AI Logic + App Check and contains no Gemini Developer API key path.
+- Real Gemini API requests are not verified on a physical device in this audit. Online AI requires a valid API key, model access, network connectivity, and available quota.
 - Semantic/vector retrieval using embeddings.
 - OCR for scanned PDFs and robust extraction of every PDF layout, table, equation, or multi-column page.
 - Cloud account synchronization and cross-device profiles.
@@ -39,7 +42,7 @@ The base app provides local document search and deterministic, structured tutori
 
 ## Known quality limitations
 
-- Offline quiz distractors are deterministic placeholders rather than a mature assessment-generation system.
+- Offline quizzes currently use four evidence-status choices rather than rich, subject-specific distractors. This prevents empty C/D options and keeps answers tied to the source, but assessment quality still needs improvement.
 - Lexical retrieval can miss semantically related passages when the student's wording differs substantially from the source.
 - PDF extraction needs validation against real textbooks, lecture notes, scanned files, tables, and malformed documents.
 - Imported source files are parsed and their chunks/metadata are stored in Room; the original file bytes are not retained in app-private storage.
@@ -48,7 +51,7 @@ The base app provides local document search and deterministic, structured tutori
 
 ## Verification status
 
-The repository contains unit, Robolectric, and emulator journey tests. The latest local audit on 9 October 2026 found that AAPT2 exits unexpectedly during Android resource linking on this Windows host. Kotlin main-source compilation succeeds when the failed resource-link task is excluded; unit tests and APK assembly have therefore not completed in this environment. Verify on CI before sharing a build:
+The repository contains unit, Robolectric, and emulator journey tests. CI on GitHub Actions is the authoritative check for the current changes; check the latest run before installing a release. A green unit-test and signed-APK build still does not prove every screen and feature works on a real phone. The emulator student-journey workflow has had failures/cancellations in previous runs, so real-device/emulator verification remains outstanding. Verify with CI before sharing a build:
 
 ```bash
 ./gradlew :app:testDebugUnitTest
