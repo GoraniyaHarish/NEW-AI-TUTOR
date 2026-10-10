@@ -468,7 +468,7 @@ class TutorFoundationTest {
         assertTrue(refreshedSkills.map { it.name }.containsAll(listOf("Photosynthesis", "Where the process happens", "Two linked stages", "What changes the rate?")))
         assertTrue(refreshedQuestions.isNotEmpty())
         assertTrue(refreshedQuestions.none { it.optionA.contains("not stated in the retrieved passage") || it.optionB.contains("not stated in the retrieved passage") })
-        assertTrue(refreshedQuestions.all { it.optionC.isBlank() && it.optionD.isBlank() })
+        assertTrue(refreshedQuestions.all { listOf(it.optionA, it.optionB, it.optionC, it.optionD).all(String::isNotBlank) && listOf(it.optionA, it.optionB, it.optionC, it.optionD).distinct().size == 4 })
         assertEquals(0, db.learnerSkillDao().getLearnerSkillsSync(courseId).sumOf { it.attempts })
         assertTrue(db.documentChunkDao().getChunksSync(courseId).isNotEmpty())
         db.close()
@@ -552,7 +552,7 @@ class TutorFoundationTest {
             
             val correctIdx = q.correctAnswerIndex
             println("DEBUG: i=$i, correctIdx=$correctIdx, skill.id=${skill.id}, chunk.id=${chunk.id}, difficulty=$difficulty")
-            assertTrue("Correct answer index must be in range 0..1", correctIdx in 0..1)
+            assertTrue("Correct answer index must be in range 0..3", correctIdx in 0..3)
             correctIndices.add(correctIdx)
             
             val chosenText = when (correctIdx) {
@@ -562,10 +562,10 @@ class TutorFoundationTest {
                 3 -> q.optionD
                 else -> ""
             }
-            assertEquals("Yes — this fact appears in your notes", chosenText)
+            assertEquals("Explicitly supported by the material", chosenText)
             
             assertTrue(q.questionText.contains("Inheritance is a key mechanism of OOP."))
-            val allOptions = listOf(q.optionA, q.optionB)
+            val allOptions = listOf(q.optionA, q.optionB, q.optionC, q.optionD)
             val distractors = allOptions.toMutableList().apply { removeAt(correctIdx) }
             for (distractor in distractors) {
                 assertFalse(distractor == chosenText)
@@ -637,9 +637,9 @@ class TutorFoundationTest {
             listOf(question.optionA, question.optionB, question.optionC, question.optionD)[question.correctAnswerIndex]
         }
         assertEquals(1, correctAnswers.distinct().size)
-        assertEquals("Yes — this fact appears in your notes", correctAnswers.first())
+        assertEquals("Explicitly supported by the material", correctAnswers.first())
         assertEquals(2, questions.map { it.questionText }.distinct().size)
-        assertTrue(questions.all { it.optionC.isBlank() && it.optionD.isBlank() })
+        assertTrue(questions.all { listOf(it.optionA, it.optionB, it.optionC, it.optionD).all(String::isNotBlank) && listOf(it.optionA, it.optionB, it.optionC, it.optionD).distinct().size == 4 })
     }
 
 }
