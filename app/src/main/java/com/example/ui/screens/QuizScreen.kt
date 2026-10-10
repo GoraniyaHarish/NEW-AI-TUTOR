@@ -75,9 +75,41 @@ fun QuizScreen(
     val learner = learnerSkills.find { it.skillId == skill?.id }
     val currentMastery = learner?.masteryScore ?: 0
 
-    // Filter questions for this skill or general questions
+    // Repair legacy offline questions created by earlier app versions. Those rows
+    // stored only Yes/No in A/B and left C/D blank, so changing the generator alone
+    // would not fix quizzes already saved on a student's device.
     val quizQuestions = remember(allQuestions, skillId) {
-        allQuestions.filter { it.skillId == skillId }
+        allQuestions.filter { it.skillId == skillId }.map { question ->
+            val isLegacyEvidenceQuestion =
+                question.optionC.isBlank() &&
+                question.optionD.isBlank() &&
+                question.questionText.startsWith("Your notes say:")
+            if (!isLegacyEvidenceQuestion) {
+                question
+            } else {
+                val claim = question.questionText
+                    .removePrefix("Your notes say:")
+                    .substringBefore("\\n\\nIs this fact stated in the source?")
+                    .trim()
+                    .trim('"')
+                val supported = "Explicitly supported by the material"
+                val options = listOf(
+                    supported,
+                    "Contradicted by the material",
+                    "Not mentioned in the material",
+                    "Only implied, not directly stated"
+                ).shuffled(java.util.Random(question.id))
+                question.copy(
+                    questionText = "What evidence status best describes this claim in the source?\\n\\n\\\"$claim\\\"",
+                    optionA = options[0],
+                    optionB = options[1],
+                    optionC = options[2],
+                    optionD = options[3],
+                    correctAnswerIndex = options.indexOf(supported),
+                    explanation = "This claim was extracted from page ${question.sourcePage} of ${question.sourceDocumentName}, so it is explicitly supported by the material."
+                )
+            }
+        }
     }
 
     val userAnswers = remember(skillId) { mutableStateMapOf<Long, Int>() }
