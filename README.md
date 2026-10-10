@@ -14,11 +14,11 @@
 
 **Want to install the Android app without building it yourself?**
 
-- **[Download the latest APK](https://github.com/GoraniyaHarish/NEW-AI-TUTOR/releases/latest/download/app-debug.apk)** — download the APK to an Android device and open it to install.
+- **[Download the latest APK](https://github.com/GoraniyaHarish/NEW-AI-TUTOR/releases/latest/download/learnmate.apk)** — download the APK to an Android device and open it to install.
 - **[View all releases](https://github.com/GoraniyaHarish/NEW-AI-TUTOR/releases)** — see available builds and release notes.
 - **[Check build and test status](https://github.com/GoraniyaHarish/NEW-AI-TUTOR/actions/workflows/android.yml)** — the APK is published automatically after the main-branch CI build and tests succeed.
 
-> **Testing build:** The downloadable APK is a debug build intended for demonstrations and testing, not a Play Store production release. Android may ask you to allow installation from your browser or file manager. Only install APKs you trust. If the download link is not available yet, check the Actions page for the latest build status.
+> **Release signing:** GitHub Actions publishes a properly signed release APK when the persistent Android signing secrets are configured. If those secrets are absent, the workflow falls back to a clearly labeled debug/testing APK; do not distribute that fallback as a public production build. Android may ask you to allow installation from your browser or file manager. Only install APKs you trust. If the download link is not available yet, check the Actions page for the latest build status.
 
 ---
 
@@ -173,7 +173,7 @@ The APK will be generated at `app/build/outputs/apk/debug/app-debug.apk`. Verify
 
 Cloud AI requires a Firebase project configured for Firebase AI Logic and App Check, with its `google-services.json` in `app/`. Do not put a Gemini Developer API key in the Android app or its build configuration; Firebase AI Logic keeps that authorization on Google's service side.
 
-For GitHub Actions builds, add the complete contents of `app/google-services.json` as a repository Actions secret named `GOOGLE_SERVICES_JSON`. The local file is ignored by Git and is not automatically available to GitHub's build runners. Without this secret, CI can still publish a tested APK, but cloud AI will be unavailable in that APK.
+For GitHub Actions builds, add the complete contents of `app/google-services.json` as a repository Actions secret named `GOOGLE_SERVICES_JSON`. The local file is ignored by Git and is not automatically available to GitHub's build runners. Without this secret, cloud AI will be unavailable in that APK. To enable signed public APKs, also add repository Actions secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_STORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD`. Use the same persistent release keystore for every update. Register its SHA-256 certificate fingerprint in Firebase App Check and configure Play Integrity for the GitHub-only distribution channel. See [the development guide](docs/DEVELOPMENT.md) for the setup checklist. CI assigns increasing version codes so new builds can update existing installations.
 
 ---
 
