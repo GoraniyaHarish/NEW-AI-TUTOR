@@ -266,7 +266,7 @@ class LocalAIService(
             )
             val seed = skill.id * 31L + count * 17L + evidenceChunk.id * 7L +
                 difficulty.hashCode() + index * 97L
-            val random = java.util.Random(seed)
+            val random = kotlin.random.Random(seed)
             val options = (distractors + correctLabel).shuffled(random)
             val correctIndex = options.indexOf(correctLabel)
 
