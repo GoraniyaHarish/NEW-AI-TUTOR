@@ -76,6 +76,55 @@ class LearnMateRepository(
     fun getChatMessages(courseId: Long): Flow<List<ChatMessageEntity>> =
         database.chatMessageDao().getMessagesForCourse(courseId)
 
+    suspend fun deleteCourse(courseId: Long) = withContext(Dispatchers.IO) {
+        database.withTransaction {
+            val documents = database.documentDao().getDocumentsSync(courseId)
+            clearCourseLearningData(courseId)
+            documents.forEach { document ->
+                database.documentChunkDao().deleteChunksForDocument(document.id)
+                database.documentDao().deleteDocument(document.id)
+            }
+            database.courseDao().deleteCourse(courseId)
+        }
+        if (_activeCourseId.value == courseId) {
+            _activeCourseId.value = database.courseDao().getFirstCourse()?.id
+        }
+    }
+
+    /**
+     * Removes one source document and rebuilds the course's generated map and questions
+     * from only the remaining documents. Progress tied to the old map is cleared so it
+     * cannot be presented as progress on newly generated topics.
+     */
+    suspend fun deleteDocument(courseId: Long, documentId: Long) = withContext(Dispatchers.IO) {
+        val document = database.documentDao().getDocumentsSync(courseId).firstOrNull { it.id == documentId }
+            ?: return@withContext false
+
+        database.withTransaction {
+            clearCourseLearningData(courseId)
+            database.documentChunkDao().deleteChunksForDocument(document.id)
+            database.documentDao().deleteDocument(document.id)
+        }
+
+        val remainingDocuments = database.documentDao().getDocumentsSync(courseId)
+        val remainingChunks = database.documentChunkDao().getChunksSync(courseId)
+        if (remainingDocuments.isNotEmpty() && remainingChunks.isNotEmpty()) {
+            processMaterialAndBuildSkillMap(courseId)
+        }
+        true
+    }
+
+    private suspend fun clearCourseLearningData(courseId: Long) {
+        database.learningPlanDao().deletePlanItemsForCourse(courseId)
+        database.learningPlanDao().deletePlansForCourse(courseId)
+        database.quizAttemptDao().deleteAttemptsForCourse(courseId)
+        database.questionDao().deleteQuestionsForCourse(courseId)
+        database.chatMessageDao().clearMessagesForCourse(courseId)
+        database.skillRelationDao().deleteRelationsForCourse(courseId)
+        database.learnerSkillDao().deleteLearnerSkillsForCourse(courseId)
+        database.skillDao().deleteSkillsForCourse(courseId)
+    }
+
     suspend fun createCourse(title: String, description: String): Long = withContext(Dispatchers.IO) {
         val course = CourseEntity(title = title, description = description, isDemo = false)
         val id = database.courseDao().insertCourse(course)
