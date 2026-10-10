@@ -4,6 +4,9 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.example.ai.local.ModelDownloadState
 import com.example.core.util.AppThemeMode
+import com.example.core.storage.ExtractedChunk
+import com.example.data.local.entity.SkillEntity
+import com.example.data.local.entity.QuestionEntity
 import com.example.ui.viewmodel.MainViewModel
 import com.example.ui.viewmodel.SelectedFileItem
 import kotlinx.coroutines.Dispatchers
@@ -213,4 +216,70 @@ class MainViewModelTest {
         docJob.cancel()
         skillJob.cancel()
     }
+
+
+    @Test
+    fun `removing a course deletes its source documents and clears active selection`() {
+        val database = com.example.data.local.database.LearnMateDatabase.getInstance(application)
+        val courseId = kotlinx.coroutines.runBlocking {
+            viewModel.repository.createCourse("Course to remove", "Test-only course")
+        }
+        kotlinx.coroutines.runBlocking {
+            viewModel.repository.addDocument(
+                courseId = courseId,
+                fileName = "notes.txt",
+                fileType = "TXT",
+                fileSize = "1 KB",
+                extractedChunks = listOf(ExtractedChunk(1, 0, "Chapter 1: Real Notes\\nThis is real imported course content."))
+            )
+            viewModel.repository.deleteCourse(courseId)
+        }
+
+        assertEquals(null, viewModel.repository.getCourse(courseId))
+        assertTrue(viewModel.repository.getAllCourses().first().isEmpty())
+        assertTrue(database.documentDao().getDocumentsSync(courseId).isEmpty())
+        assertTrue(database.documentChunkDao().getChunksSync(courseId).isEmpty())
+        assertEquals(null, viewModel.activeCourseId.value)
+    }
+
+    @Test
+    fun `removing a document clears stale generated learning data when no documents remain`() {
+        val database = com.example.data.local.database.LearnMateDatabase.getInstance(application)
+        val courseId = kotlinx.coroutines.runBlocking {
+            viewModel.repository.createCourse("Document removal", "Test-only course")
+        }
+        val documentId = kotlinx.coroutines.runBlocking {
+            viewModel.repository.addDocument(
+                courseId = courseId,
+                fileName = "notes.txt",
+                fileType = "TXT",
+                fileSize = "1 KB",
+                extractedChunks = listOf(ExtractedChunk(1, 0, "Chapter 1: Real Notes\\nThis is real imported course content."))
+            )
+        }
+        kotlinx.coroutines.runBlocking {
+            val skillId = database.skillDao().insertSkill(
+                SkillEntity(courseId = courseId, name = "Real Notes", description = "From source", chapter = "Course Topics")
+            )
+            database.questionDao().insertQuestions(
+                listOf(
+                    QuestionEntity(
+                        courseId = courseId,
+                        skillId = skillId,
+                        questionText = "Question from source",
+                        optionA = "A", optionB = "B", optionC = "C", optionD = "D",
+                        correctAnswerIndex = 0,
+                        explanation = "From source"
+                    )
+                )
+            )
+            assertTrue(viewModel.repository.deleteDocument(courseId, documentId))
+        }
+
+        assertTrue(database.documentDao().getDocumentsSync(courseId).isEmpty())
+        assertTrue(database.documentChunkDao().getChunksSync(courseId).isEmpty())
+        assertTrue(database.skillDao().getSkillsSync(courseId).isEmpty())
+        assertTrue(database.questionDao().getQuestionsSync(courseId).isEmpty())
+    }
+
 }
