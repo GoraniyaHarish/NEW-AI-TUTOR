@@ -98,7 +98,7 @@ fun QuizScreen(
                     "Contradicted by the material",
                     "Not mentioned in the material",
                     "Only implied, not directly stated"
-                ).shuffled(java.util.Random(question.id))
+                ).shuffled(kotlin.random.Random(question.id))
                 question.copy(
                     questionText = "What evidence status best describes this claim in the source?\n\n\"$claim\"",
                     optionA = options[0],
