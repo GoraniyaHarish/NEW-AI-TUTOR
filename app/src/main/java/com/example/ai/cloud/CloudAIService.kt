@@ -315,8 +315,11 @@ open class CloudAIService(private val context: Context? = null) : AIService {
                 return Pair(text, model)
             } catch (e: Exception) {
                 Log.e(TAG, "Firebase AI request failed with model $model", e)
-                lastException?.addSuppressed(e)
-                lastException = e
+                if (lastException == null) {
+                    lastException = e
+                } else {
+                    lastException.addSuppressed(e)
+                }
             }
         }
         throw lastException ?: Exception("Failed to execute Gemini request across candidate models.")
